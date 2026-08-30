@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+
+    <!-- Цилиндр -->
+    <path android:pathData="M38,30 h32 v34 h-32 z" android:fillColor="#FF14181F" />
+    <path android:pathData="M38,30 h32 v34 h-32 z" android:strokeColor="#FFE9D8B0" android:strokeWidth="2.5" />
+    <path android:pathData="M36,52 h36 v8 h-36 z" android:fillColor="#FFD4A24C" />
+    <path android:pathData="M24,64 h60 v7 h-60 z" android:fillColor="#FF14181F" />
+    <path android:pathData="M24,64 h60 v7 h-60 z" android:strokeColor="#FFE9D8B0" android:strokeWidth="2.5" />
+
+    <!-- Монеты -->
+    <path android:pathData="M32,84 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0"
+        android:fillColor="#FFF0C674" />
+    <path android:pathData="M52,88 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0"
+        android:fillColor="#FFD4A24C" />
+    <path android:pathData="M72,84 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0"
+        android:fillColor="#FFF0C674" />
+</vector>

@@ -52,6 +52,7 @@
     <queries>
         <package android:name="com.dilemma.prisoners" />
         <package android:name="com.dilemma.seabattle" />
+        <package android:name="com.dilemma.monopoly" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />

@@ -36,6 +36,14 @@ export const GAMES: GameEntry[] = [
     packageId: 'com.dilemma.seabattle',
     downloadUrl: RELEASES_URL,
   },
+  {
+    id: 'monopoly',
+    name: 'Монополия',
+    emoji: '🎩',
+    tagline: 'Классические правила и режим большого развития. До шести игроков по Wi-Fi.',
+    packageId: 'com.dilemma.monopoly',
+    downloadUrl: RELEASES_URL,
+  },
 ];
 
 /** Идентификатор игры, внутри которой мы сейчас находимся. */

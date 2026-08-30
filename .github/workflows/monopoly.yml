@@ -1,29 +1,24 @@
-name: Сборка APK
+name: Сборка APK — Монополия
 
 on:
   push:
     branches: [main, master]
-    # Игры собираются раздельно: правки «Морского боя» не трогают эту сборку.
-    paths-ignore:
-      - 'seabattle/**'
+    paths:
       - 'monopoly/**'
-      - '.github/workflows/seabattle.yml'
-      - 'share/**'
-    tags: ['v*']
+      - '.github/workflows/monopoly.yml'
+    tags: ['mono-v*']
   pull_request:
     branches: [main, master]
-    paths-ignore:
-      - 'seabattle/**'
+    paths:
       - 'monopoly/**'
   workflow_dispatch:
-    inputs:
-      release_notes:
-        description: 'Что нового в этой сборке'
-        required: false
-        default: 'Ручная сборка'
 
 permissions:
   contents: write
+
+defaults:
+  run:
+    working-directory: monopoly
 
 jobs:
   build:
@@ -39,6 +34,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: monopoly/package-lock.json
 
       - name: Установить зависимости
         run: npm ci
@@ -72,8 +68,8 @@ jobs:
       - name: Определить версию
         id: version
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/v}"
+          if [[ "$GITHUB_REF" == refs/tags/mono-v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/mono-v}"
           else
             VERSION="1.0.$GITHUB_RUN_NUMBER"
           fi
@@ -82,7 +78,7 @@ jobs:
           echo "BUILD_NUMBER=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
 
       - name: Собрать release APK
-        working-directory: android
+        working-directory: monopoly/android
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -95,27 +91,31 @@ jobs:
         run: |
           mkdir -p out
           cp android/app/build/outputs/apk/release/app-release*.apk \
-             "out/dilemma-${{ steps.version.outputs.version }}.apk"
+             "out/monopoly-${{ steps.version.outputs.version }}.apk"
           ls -lh out
 
       - name: Приложить APK к запуску
         uses: actions/upload-artifact@v4
         with:
-          name: dilemma-apk-${{ steps.version.outputs.version }}
-          path: out/*.apk
+          name: monopoly-apk-${{ steps.version.outputs.version }}
+          path: monopoly/out/*.apk
           retention-days: 90
 
       - name: Опубликовать релиз
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/mono-v')
         uses: softprops/action-gh-release@v2
         with:
-          files: out/*.apk
-          name: Дилемма заключённого ${{ steps.version.outputs.version }}
+          files: monopoly/out/*.apk
+          name: Монополия ${{ steps.version.outputs.version }}
+          # Отметку «latest» держит «Дилемма заключённого»: на неё
+          # ведёт напечатанный QR-код, и он не должен переключиться.
+          make_latest: false
           body: |
             APK для Android 6.0 и новее.
 
             Скачайте файл ниже, разрешите установку из неизвестных источников
             и откройте его на телефоне.
 
-            Для игры по Wi-Fi всем участникам нужна одна и та же сеть.
+            Для игры по Wi-Fi всем участникам нужна одна и та же сеть:
+            один телефон открывает стол, остальные подключаются к нему.
           generate_release_notes: true

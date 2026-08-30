@@ -4,14 +4,33 @@
     {
       "name": "dilemma-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5173
     },
     {
       "name": "seabattle-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "seabattle", "run", "dev"],
+      "runtimeArgs": [
+        "--prefix",
+        "seabattle",
+        "run",
+        "dev"
+      ],
       "port": 5174
+    },
+    {
+      "name": "monopoly-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "monopoly",
+        "run",
+        "dev"
+      ],
+      "port": 5175
     }
   ]
 }

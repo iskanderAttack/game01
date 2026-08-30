@@ -47,7 +47,7 @@ export const GAMES: GameEntry[] = [
 ];
 
 /** Идентификатор игры, внутри которой мы сейчас находимся. */
-export const SELF_ID = 'dilemma';
+export const SELF_ID = 'monopoly';
 
 export function otherGames(): GameEntry[] {
   return GAMES.filter((g) => g.id !== SELF_ID);

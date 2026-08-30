@@ -1,0 +1,578 @@
+/* ───────────────────────────── токены ───────────────────────────── */
+:root {
+  --bg: #0b1220;
+  --bg-2: #111a2e;
+  --surface: rgba(255, 255, 255, 0.05);
+  --surface-2: rgba(255, 255, 255, 0.085);
+  --stroke: rgba(212, 175, 105, 0.16);
+  --stroke-strong: rgba(212, 175, 105, 0.34);
+  --text: #f4efe4;
+  --muted: rgba(240, 232, 214, 0.62);
+  --faint: rgba(240, 232, 214, 0.36);
+
+  --accent: #d4a24c;
+  --accent-2: #f0c674;
+  --deep: #1b2740;
+
+  --danger: #fb7185;
+  --danger-dim: rgba(251, 113, 133, 0.18);
+  --ok: #34d399;
+  --ok-dim: rgba(52, 211, 153, 0.16);
+  --gold: #f0c674;
+  --felt: #12341f;
+
+  --r-sm: 12px;
+  --r-md: 18px;
+  --r-lg: 26px;
+  --r-xl: 34px;
+
+  --shadow-1: 0 8px 30px rgba(0, 0, 0, 0.45);
+  --shadow-2: 0 20px 60px rgba(0, 0, 0, 0.55);
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  --font: 'Inter', 'Segoe UI', system-ui, -apple-system, 'Roboto', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  user-select: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ───────────────────────────── фон-океан ───────────────────────────── */
+.app-shell {
+  position: relative;
+  min-height: 100%;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.table-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(130% 90% at 50% -20%, #1c2a46 0%, var(--bg-2) 45%, var(--bg) 78%);
+}
+
+.table-bg::before,
+.table-bg::after {
+  content: '';
+  position: absolute;
+  width: 80vmax;
+  height: 80vmax;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.34;
+  animation: swell 30s ease-in-out infinite alternate;
+}
+
+.table-bg::before {
+  background: radial-gradient(circle, #d4a24c 0%, transparent 62%);
+  top: -34vmax;
+  left: -24vmax;
+}
+
+.table-bg::after {
+  background: radial-gradient(circle, #2b4a8f 0%, transparent 62%);
+  bottom: -38vmax;
+  right: -26vmax;
+  animation-delay: -15s;
+}
+
+@keyframes swell {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(5vmax, 4vmax, 0) scale(1.16);
+  }
+}
+
+/* Лёгкая рябь поверх фона. */
+.felt {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.16;
+  background-image: repeating-linear-gradient(
+    115deg,
+    transparent 0 26px,
+    rgba(212, 175, 105, 0.07) 26px 27px
+  );
+}
+
+/* ───────────────────────────── каркас ───────────────────────────── */
+.screen {
+  position: relative;
+  min-height: 100dvh;
+  padding: calc(var(--safe-top) + 14px) 16px calc(var(--safe-bottom) + 18px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar h2 {
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.topbar .sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  color: var(--text);
+}
+
+.icon-btn:active {
+  background: var(--surface-2);
+}
+
+.icon-btn.small-icon {
+  width: 32px;
+  height: 32px;
+  font-size: 15px;
+  border-radius: 11px;
+}
+
+/* ───────────────────────────── блоки ───────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  backdrop-filter: blur(12px);
+}
+
+.card.center {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.card.glow {
+  box-shadow: 0 0 50px -18px var(--accent);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.row.between {
+  justify-content: space-between;
+}
+
+.wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.center {
+  text-align: center;
+}
+
+.label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.divider {
+  height: 1px;
+  background: var(--stroke);
+  margin: 2px 0;
+}
+
+.notice {
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.notice.warn {
+  border-color: rgba(251, 113, 133, 0.4);
+  background: var(--danger-dim);
+  color: #ffd9df;
+}
+
+.notice.good {
+  border-color: rgba(52, 211, 153, 0.4);
+  background: rgba(52, 211, 153, 0.14);
+  color: #c9ffe9;
+}
+
+/* ───────────────────────────── кнопки ───────────────────────────── */
+.btn {
+  padding: 14px 18px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  color: var(--text);
+  font-weight: 650;
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+
+.btn:active {
+  transform: scale(0.982);
+  background: var(--surface-2);
+}
+
+.btn.block {
+  width: 100%;
+}
+
+.btn.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+  color: #221703;
+  font-weight: 750;
+  box-shadow: 0 12px 34px -14px var(--accent);
+}
+
+.btn.danger {
+  background: var(--danger-dim);
+  border-color: rgba(251, 113, 133, 0.5);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.btn.small {
+  padding: 9px 13px;
+  font-size: 13.5px;
+  border-radius: var(--r-sm);
+}
+
+.chip {
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.chip.on {
+  background: rgba(212, 162, 76, 0.18);
+  border-color: rgba(212, 162, 76, 0.45);
+  color: #ffeccb;
+}
+
+.chip.pulse {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.shimmer {
+  animation: shimmer 2.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+/* ───────────────────────────── управление ───────────────────────────── */
+.segmented {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-md);
+}
+
+.segmented button {
+  flex: 1;
+  padding: 10px 6px;
+  border-radius: 13px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.segmented button.on {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toggle-row .setting-label {
+  font-size: 15px;
+  font-weight: 620;
+}
+
+.toggle-row .setting-hint,
+.setting-hint {
+  font-size: 12.5px;
+  color: var(--faint);
+  line-height: 1.45;
+}
+
+.switch {
+  width: 50px;
+  height: 30px;
+  flex: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--stroke);
+  position: relative;
+  transition: background 0.18s ease;
+}
+
+.switch.on {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+}
+
+.switch span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.18s cubic-bezier(0.34, 1.4, 0.5, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.switch.on span {
+  transform: translateX(20px);
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stepper button {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  font-size: 18px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.stepper .value {
+  min-width: 62px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.field {
+  width: 100%;
+  padding: 13px 15px;
+  border-radius: var(--r-md);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--stroke);
+  color: var(--text);
+  outline: none;
+}
+
+.field:focus {
+  border-color: var(--stroke-strong);
+}
+
+/* ───────────────────────────── шторка ───────────────────────────── */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 8, 16, 0.72);
+  backdrop-filter: blur(6px);
+  z-index: 40;
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  background: linear-gradient(180deg, #16203a, #0c1322);
+  border-top: 1px solid var(--stroke-strong);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  padding: 14px 16px calc(var(--safe-bottom) + 20px);
+  max-height: 86dvh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-2);
+}
+
+.sheet-grip {
+  width: 44px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--stroke-strong);
+  margin: 0 auto 14px;
+}
+
+.sheet h3 {
+  font-size: 18px;
+  font-weight: 720;
+  margin-bottom: 12px;
+}
+
+/* ─────────────────── безопасный режим отрисовки ───────────────────
+   Включается сторожем, когда WebView перестал выдавать кадры и
+   анимации замерли на полпути: всё принудительно доводится до
+   конечного состояния, чтобы экран не остался пустым. */
+.safe-motion [style*='opacity'] {
+  opacity: 1 !important;
+}
+
+.safe-motion [style*='transform']:not(.token) {
+  transform: none !important;
+}
+
+.safe-motion .shimmer,
+.safe-motion .pulse,
+.safe-motion .pulse-ring {
+  animation: none !important;
+}

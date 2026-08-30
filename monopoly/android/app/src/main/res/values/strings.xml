@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Монополия</string>
+    <string name="title_activity_main">Монополия</string>
+    <string name="package_name">com.dilemma.monopoly</string>
+    <string name="custom_url_scheme">com.dilemma.monopoly</string>
+</resources>
