@@ -189,7 +189,10 @@
 
 .board-grid {
   display: grid;
+  /* Ряды задаём явно: без этого пустые клетки не имеют высоты,
+     контейнер растягивает их по остатку и часть клеток выходит вытянутой. */
   grid-template-columns: repeat(var(--n), 1fr);
+  grid-template-rows: repeat(var(--n), 1fr);
   gap: var(--gap);
   aspect-ratio: 1;
   padding: var(--gap);
@@ -237,11 +240,19 @@
 .board-layout {
   display: grid;
   grid-template-columns: 14px 1fr;
-  align-items: start;
+  /* Колонка с буквами обязана тянуться на всю высоту сетки, иначе
+     подписи рядов собираются вверху и не совпадают со строками. */
+  align-items: stretch;
+}
+
+.board-axis.rows {
+  height: 100%;
 }
 
 .cell {
   position: relative;
+  min-width: 0;
+  min-height: 0;
   border-radius: 4px;
   background: rgba(120, 190, 240, 0.07);
   border: 1px solid rgba(140, 200, 255, 0.07);
@@ -330,8 +341,18 @@
 }
 
 .cell.aim {
-  box-shadow: inset 0 0 0 2px var(--accent);
-  background: rgba(56, 189, 248, 0.22);
+  box-shadow: inset 0 0 0 2px var(--gold);
+  background: rgba(251, 191, 36, 0.34);
+  animation: aimPulse 1.1s ease-in-out infinite;
+}
+
+@keyframes aimPulse {
+  0%, 100% {
+    background: rgba(251, 191, 36, 0.3);
+  }
+  50% {
+    background: rgba(251, 191, 36, 0.52);
+  }
 }
 
 .cell.preview-ok {
@@ -583,6 +604,17 @@
   height: 7px;
   border-radius: 1.5px;
   background: var(--ship);
+}
+
+.board-wrap.dense + .fleet-strip .fleet-pip,
+.own-side.info .fleet-pip {
+  padding: 2px 4px;
+}
+
+.board-wrap.dense + .fleet-strip .fleet-pip i,
+.own-side.info .fleet-pip i {
+  width: 5px;
+  height: 5px;
 }
 
 .fleet-pip.dead i {
@@ -887,4 +919,180 @@
   color: var(--faint);
   margin-top: 3px;
   line-height: 1.45;
+}
+
+/* ─────────────────── боевой экран: два поля разом ─────────────────── */
+
+/* Шапки нет — её место отдано полям. Верхняя строка компактная. */
+.battle-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+}
+
+.battle-top.mine {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(34, 211, 238, 0.06));
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.battle-top .who {
+  font-size: 15px;
+  font-weight: 730;
+  line-height: 1.15;
+}
+
+.battle-top .note {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.battle-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.board-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* Своё поле — заметно меньше вражеского, но остаётся читаемым. */
+.board-wrap.own {
+  max-width: 100%;
+  margin: 0;
+}
+
+.board-wrap.own .board-grid {
+  padding: 1.5px;
+  gap: 1.5px;
+  border-radius: var(--r-sm);
+}
+
+.board-wrap.own .cell {
+  border-radius: 2px;
+}
+
+/* Чем крупнее поле, тем плотнее сетка — иначе на телефон не влезает. */
+.board-wrap.dense .board-grid {
+  gap: 1.5px;
+}
+
+.board-wrap.dense .cell {
+  border-radius: 3px;
+}
+
+.own-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+/* Поле забирает большую часть строки, справа остаются флот и подпись. */
+.own-side.board {
+  flex: 0 0 58%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.own-side.info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+/* Нижняя панель: журнал прячется сюда и открывается по требованию. */
+.battle-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.foot-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  font-size: 13px;
+  font-weight: 640;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.foot-btn:active {
+  background: var(--surface-2);
+}
+
+.foot-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.24);
+  color: #dff3ff;
+  font-size: 11px;
+  font-weight: 750;
+  display: grid;
+  place-items: center;
+}
+
+.hint-line {
+  text-align: center;
+  font-size: 12px;
+  color: var(--faint);
+  padding: 2px 0;
+}
+
+/* Тревога, когда попали по нам. */
+.alarm-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, transparent 55%, rgba(251, 113, 133, 0.42) 100%);
+  animation: alarmFlash 0.7s ease-out forwards;
+}
+
+@keyframes alarmFlash {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.screen.battle {
+  gap: 10px;
 }

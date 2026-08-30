@@ -43,7 +43,6 @@ export const DEFAULT_SETTINGS: GameSettings = {
   timer: 0,
   hints: true,
   abilities: false,
-  confirmShot: true,
   sound: true,
   haptics: true,
   botLevel: 'normal',

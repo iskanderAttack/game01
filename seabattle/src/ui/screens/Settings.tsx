@@ -34,13 +34,6 @@ export function SettingsScreen() {
             value={settings.haptics}
             onChange={(v) => setSettings({ haptics: v })}
           />
-          <Toggle
-            emoji="🎯"
-            label="Подтверждать выстрел"
-            hint="сначала прицел, потом кнопка «Огонь» — меньше промахов пальцем"
-            value={settings.confirmShot}
-            onChange={(v) => setSettings({ confirmShot: v })}
-          />
         </div>
 
         <SectionTitle>Правила по умолчанию</SectionTitle>
@@ -79,7 +72,7 @@ export function SettingsScreen() {
             <div>
               <div style={{ fontWeight: 700 }}>Морской бой</div>
               <div className="muted" style={{ fontSize: 13 }}>
-                Версия 1.0.1 · офлайн и по Wi-Fi
+                Версия 1.0.2 · офлайн и по Wi-Fi
               </div>
             </div>
           </div>

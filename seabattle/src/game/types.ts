@@ -150,8 +150,6 @@ export interface GameSettings {
   hints: boolean;
   /** Способности и энергия (режим «Адмирал»). */
   abilities: boolean;
-  /** Подтверждать выстрел отдельной кнопкой. */
-  confirmShot: boolean;
   sound: boolean;
   haptics: boolean;
   botLevel: BotLevel;

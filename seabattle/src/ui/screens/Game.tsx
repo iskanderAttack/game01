@@ -4,8 +4,8 @@ import { useApp, useCurrentView, useNeedsHandoff } from '../../store/appStore';
 import { getAbility } from '../../game/abilities';
 import { getMode } from '../../game/modes';
 import { cellName } from '../../game/coords';
-import { NONE, type Coord } from '../../game/types';
-import { Screen, Sheet, TopBar } from '../components/Shell';
+import { NONE, type Coord, type ShotRecord } from '../../game/types';
+import { Screen, Sheet } from '../components/Shell';
 import { Board } from '../components/Board';
 import { AbilityBar, EnergyBar } from '../components/AbilityBar';
 import { TargetStrip } from '../components/TargetStrip';
@@ -16,8 +16,6 @@ import { haptic, play, tap } from '../../lib/feedback';
 
 export function GameScreen() {
   const view = useCurrentView();
-  const netRole = useApp((s) => s.netRole);
-  const localPlayerId = useApp((s) => s.localPlayerId);
   const feed = useApp((s) => s.feed);
   const quitGame = useApp((s) => s.quitGame);
   const handoff = useNeedsHandoff();
@@ -27,14 +25,16 @@ export function GameScreen() {
   const [lineAxis, setLineAxis] = useState<'row' | 'col'>('row');
   const [gateFor, setGateFor] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [showOwn, setShowOwn] = useState(false);
+  const [alarm, setAlarm] = useState(0);
   const [left, setLeft] = useState(0);
 
   const turnOfId = view?.turnOfId ?? null;
   const myTurn = !!view && turnOfId === view.me.id;
   const timer = view?.settings.timer ?? 0;
   const prevTurnRef = useRef<string | null>(null);
+  const seenLogRef = useRef(0);
 
   /* Сброс прицела и способности при смене хода. */
   useEffect(() => {
@@ -46,6 +46,24 @@ export function GameScreen() {
       if (myTurn) play('turn');
     }
   }, [turnOfId, myTurn]);
+
+  /*
+   * Озвучиваем результат по журналу, а не по факту нажатия.
+   *
+   * Только так звук совпадает с реальным исходом: попал, потопил или
+   * промахнулся. Заодно ловим чужие залпы по нам — по ним даём тревогу.
+   */
+  const logLength = view?.log.length ?? 0;
+  useEffect(() => {
+    if (!view) return;
+    if (logLength < seenLogRef.current) seenLogRef.current = 0;
+    const fresh = view.log.slice(seenLogRef.current);
+    seenLogRef.current = logLength;
+    if (fresh.length === 0) return;
+
+    for (const r of fresh) soundFor(r, view.me.id, () => setAlarm((n) => n + 1));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logLength]);
 
   /* Таймер хода: время вышло — стреляем в первую свободную клетку. */
   useEffect(() => {
@@ -90,11 +108,11 @@ export function GameScreen() {
   }
 
   const mode = getMode(view.settings.modeId);
-  const turnPlayer =
-    view.me.id === turnOfId ? view.me : enemies.find((e) => e.id === turnOfId) ?? null;
-
-  const showGate =
-    handoff && myTurn && gateFor !== `${turnOfId}-${view.turn}` && view.phase === 'playing';
+  const turnPlayer = view.me.id === turnOfId ? view.me : enemies.find((e) => e.id === turnOfId) ?? null;
+  const showGate = handoff && myTurn && gateFor !== `${turnOfId}-${view.turn}` && view.phase === 'playing';
+  const needsOwnBoard = selectedAbility?.target === 'ownCell';
+  // Крупные поля рисуем плотнее, иначе два поля не помещаются на экран.
+  const dense = view.settings.boardSize >= 11;
 
   /* ─────────────────────────── действия ─────────────────────────── */
 
@@ -110,20 +128,10 @@ export function GameScreen() {
     }
   }
 
-  const canShoot = (c: Coord) =>
-    !!target && target.alive && target.board.shots[c.y]?.[c.x] === NONE;
+  const canShoot = (c: Coord) => !!target && target.alive && target.board.shots[c.y]?.[c.x] === NONE;
 
   const doFire = (c: Coord) => {
-    if (!myTurn || !target) return;
-    if (!canShoot(c)) {
-      haptic('warning');
-      setNotice('Сюда уже стреляли — выберите другую клетку');
-      return;
-    }
-    const wasHit = false; // результат придёт из состояния; звук даём по факту ниже
-    haptic('medium');
-    play('splash');
-    void wasHit;
+    if (!myTurn || !target || !canShoot(c)) return;
     fireEverywhere(c.x, c.y);
     setAim(null);
   };
@@ -167,72 +175,69 @@ export function GameScreen() {
     setNotice(null);
   };
 
-  const onBoardCommit = (c: Coord) => {
+  /** Первый тап ставит жёлтый прицел, второй по той же клетке — стреляет. */
+  const onEnemyTap = (c: Coord) => {
     if (!myTurn) return;
+
     if (selectedAbility) {
       if (selectedAbility.target === 'ownCell') return;
       doAbility(c);
       return;
     }
-    if (view.settings.confirmShot) {
-      setAim(c);
-      haptic('light');
+
+    if (!canShoot(c)) {
+      haptic('warning');
+      setNotice('Сюда уже стреляли');
       return;
     }
-    doFire(c);
+
+    if (aim && aim.x === c.x && aim.y === c.y) {
+      doFire(c);
+      return;
+    }
+
+    setAim(c);
+    setNotice(null);
+    play('select');
+    haptic('light');
   };
 
-  const onOwnBoardCommit = (c: Coord) => {
-    if (!myTurn || !selectedAbility) return;
-    if (selectedAbility.target !== 'ownCell') return;
+  const onOwnTap = (c: Coord) => {
+    if (!myTurn || !needsOwnBoard) return;
     doAbility(c);
   };
 
   /* ─────────────────────────── отрисовка ─────────────────────────── */
 
-  const needsOwnBoard = selectedAbility?.target === 'ownCell';
-
   return (
-    <Screen name="game">
-      <TopBar
-        title={`${mode.emoji} ${mode.name}`}
-        subtitle={`Ход ${view.turn}${timer && myTurn ? ` · ${left} с` : ''}`}
-        right={
-          <button className="icon-btn" onClick={() => { tap(); setMenuOpen(true); }} aria-label="Меню">
-            ⋯
-          </button>
-        }
-      />
-
-      <div className={`turn-banner ${myTurn ? 'mine' : ''}`}>
-        {turnPlayer && <Avatar emoji={turnPlayer.emoji} color={turnPlayer.color} size={40} />}
+    <Screen name="game" className="battle">
+      {/* Шапки нет: её место занимают поля. */}
+      <div className={`battle-top ${myTurn ? 'mine' : ''}`}>
+        {turnPlayer && <Avatar emoji={turnPlayer.emoji} color={turnPlayer.color} size={34} />}
         <div className="grow">
-          <div className="turn-name">{myTurn ? 'Ваш залп' : `Ходит ${turnPlayer?.name ?? '…'}`}</div>
-          <div className="turn-note">
-            {myTurn
-              ? selectedAbility
-                ? `${selectedAbility.emoji} ${selectedAbility.name}: ${selectedAbility.short}`
-                : target
-                  ? `Цель — ${target.name}`
-                  : 'Целей не осталось'
-              : 'Ждём соперника…'}
+          <div className="who">{myTurn ? 'Ваш залп' : `Ходит ${turnPlayer?.name ?? '…'}`}</div>
+          <div className="note">
+            {mode.emoji} ход {view.turn}
+            {timer > 0 && myTurn ? ` · ${left} с` : ''}
+            {selectedAbility ? ` · ${selectedAbility.emoji} ${selectedAbility.name}` : ''}
           </div>
         </div>
         {view.settings.abilities && <EnergyBar energy={view.me.energy} />}
+        <button className="icon-btn" onClick={() => { tap(); setMenuOpen(true); }} aria-label="Меню">
+          ⋯
+        </button>
       </div>
 
-      <div className="scroll">
-        <TargetStrip
-          enemies={enemies}
-          targetId={target?.id ?? null}
-          onPick={(id) => selectTargetEverywhere(id)}
-        />
+      <div className="battle-body">
+        {enemies.length > 1 && (
+          <TargetStrip enemies={enemies} targetId={target?.id ?? null} onPick={(id) => selectTargetEverywhere(id)} />
+        )}
 
         {target ? (
           <>
-            <div className="row between">
-              <span className="label">Карта соперника — {target.name}</span>
-              <span className="chip mono">{target.board.shipsLeft} 🚢</span>
+            <div className="board-caption">
+              <span>🎯 {target.name}</span>
+              <span className="mono">{target.board.shipsLeft} на плаву</span>
             </div>
             <Board
               size={target.board.size}
@@ -241,10 +246,11 @@ export function GameScreen() {
               sunk={target.board.sunk}
               intel={target.board.intel}
               aim={aim}
-              onAim={setAim}
-              onCommit={onBoardCommit}
+              onAim={() => {}}
+              onCommit={onEnemyTap}
               commitOnRelease
               disabled={!myTurn || !target.alive || needsOwnBoard}
+              wrapClass={dense ? 'dense' : ''}
             />
             <FleetStrip fleetId={view.settings.fleetId} sunk={target.board.sunk} />
           </>
@@ -254,16 +260,22 @@ export function GameScreen() {
 
         {notice && <div className="notice warn">{notice}</div>}
 
+        {myTurn && !selectedAbility && (
+          <div className="hint-line">
+            {aim ? `Нажмите ${cellName(aim.x, aim.y)} ещё раз — залп` : 'Коснитесь клетки, чтобы прицелиться'}
+          </div>
+        )}
+
         {selectedAbility?.target === 'enemyLine' && (
           <div className="row">
             <button
-              className={`btn grow ${lineAxis === 'row' ? 'primary' : ''}`}
+              className={`btn grow small ${lineAxis === 'row' ? 'primary' : ''}`}
               onClick={() => { tap(); setLineAxis('row'); }}
             >
               ↔ По ряду
             </button>
             <button
-              className={`btn grow ${lineAxis === 'col' ? 'primary' : ''}`}
+              className={`btn grow small ${lineAxis === 'col' ? 'primary' : ''}`}
               onClick={() => { tap(); setLineAxis('col'); }}
             >
               ↕ По столбцу
@@ -277,35 +289,11 @@ export function GameScreen() {
           </button>
         )}
 
-        {view.settings.abilities && (
-          <>
-            <span className="label">Штаб</span>
-            <AbilityBar
-              energy={view.me.energy}
-              selected={ability}
-              onSelect={(id) => {
-                setAbility(id);
-                setAim(null);
-                setNotice(null);
-                if (id && getAbility(id)?.target === 'ownCell') setShowOwn(true);
-              }}
-              disabled={!myTurn}
-            />
-          </>
-        )}
-
-        <button
-          className="btn block"
-          onClick={() => { tap(); setShowOwn((v) => !v); }}
-        >
-          {showOwn ? '▲ Скрыть мою карту' : '▼ Показать мою карту'}
-        </button>
-
-        {showOwn && (
-          <>
-            <div className="row between">
-              <span className="label">Моя карта</span>
-              <span className="chip mono">{view.me.board.ships.filter((s) => !s.hits.every(Boolean)).length} 🚢</span>
+        {/* Своё поле — всегда на виду, ниже вражеского. */}
+        <div className="own-row">
+          <div className="own-side board">
+            <div className="board-caption">
+              <span>⚓ Моя карта</span>
             </div>
             <Board
               size={view.me.board.size}
@@ -313,63 +301,73 @@ export function GameScreen() {
               mode="own"
               ships={view.me.board.ships}
               mines={view.me.board.mines}
-              onCommit={onOwnBoardCommit}
+              onCommit={onOwnTap}
               commitOnRelease={needsOwnBoard}
               disabled={!needsOwnBoard}
+              showCoords={false}
+              wrapClass="own"
             />
-            {needsOwnBoard && (
-              <div className="notice">
-                Выберите клетку на своём поле для «{selectedAbility?.name}».
-              </div>
-            )}
-          </>
-        )}
-
-        {view.allies.length > 0 && (
-          <>
-            <span className="label">Эскадра</span>
-            <div className="wrap">
-              {view.allies.map((a) => (
-                <span key={a.id} className="mini-player">
-                  <Avatar emoji={a.emoji} color={a.color} size={24} ring={false} />
-                  {a.name}
-                </span>
-              ))}
+          </div>
+          <div className="own-side info">
+            <FleetStrip
+              fleetId={view.settings.fleetId}
+              sunk={view.me.board.ships
+                .filter((s) => s.hits.every(Boolean))
+                .map((s) => ({ size: s.size, x: s.x, y: s.y, dir: s.dir, role: s.role }))}
+            />
+            <div className="setting-hint">
+              {needsOwnBoard
+                ? `Выберите клетку для «${selectedAbility?.name}»`
+                : `Целых кораблей: ${view.me.board.ships.filter((s) => !s.hits.every(Boolean)).length}`}
             </div>
-          </>
-        )}
+          </div>
+        </div>
 
-        {feed.length > 0 && (
-          <>
-            <span className="label">Журнал боя</span>
-            <div className="feed">
-              {feed.slice(0, 8).map((line, i) => (
-                <div key={i} className="feed-line">
-                  {line}
-                </div>
-              ))}
-            </div>
-          </>
+        {view.settings.abilities && (
+          <AbilityBar
+            energy={view.me.energy}
+            selected={ability}
+            onSelect={(id) => {
+              setAbility(id);
+              setAim(null);
+              setNotice(null);
+            }}
+            disabled={!myTurn}
+          />
         )}
       </div>
 
-      {myTurn && !selectedAbility && view.settings.confirmShot && (
-        <button
-          className="btn primary block"
-          disabled={!aim || !canShoot(aim)}
-          onClick={() => aim && doFire(aim)}
-        >
-          {aim ? `🔥 Огонь — ${cellName(aim.x, aim.y)}` : 'Выберите клетку на карте соперника'}
+      {/* Журнал спрятан вниз и открывается по требованию. */}
+      <div className="battle-foot">
+        <button className="foot-btn" onClick={() => { tap(); setLogOpen(true); }}>
+          📜 Журнал
+          {feed.length > 0 && <span className="foot-badge mono">{feed.length}</span>}
         </button>
-      )}
+      </div>
 
-      <Sheet open={menuOpen} onClose={() => setMenuOpen(false)} title="Бой">
+      {alarm > 0 && <div key={alarm} className="alarm-flash" />}
+
+      <Sheet open={logOpen} onClose={() => setLogOpen(false)} title="Журнал боя">
+        <div className="stack">
+          {feed.length === 0 && <div className="muted">Пока ничего не произошло.</div>}
+          {feed.map((line, i) => (
+            <div key={i} className="feed-line">
+              {line}
+            </div>
+          ))}
+        </div>
+      </Sheet>
+
+      <Sheet open={menuOpen} onClose={() => setMenuOpen(false)} title={`${mode.emoji} ${mode.name}`}>
         <div className="stack">
           <div className="card">
             <span className="label">Обстановка</span>
             <div className="wrap" style={{ marginTop: 10 }}>
               <span className="chip">👥 {enemies.length + 1}</span>
-              <span className="chip">🎯 точность {view.me.stats.shots ? Math.round((view.me.stats.hits / view.me.stats.shots) * 100) : 0}%</span>
+              <span className="chip">
+                🎯 точность{' '}
+                {view.me.stats.shots ? Math.round((view.me.stats.hits / view.me.stats.shots) * 100) : 0}%
+              </span>
               <span className="chip">💥 потоплено {view.me.stats.sunk}</span>
               {view.settings.abilities && <span className="chip">⚡ {view.me.energy}</span>}
             </div>
@@ -393,4 +391,42 @@ export function GameScreen() {
       </AnimatePresence>
     </Screen>
   );
+}
+
+/** Звук и отдача по фактическому исходу выстрела. */
+function soundFor(r: ShotRecord, meId: string, flashAlarm: () => void) {
+  const mine = r.byId === meId;
+  const atMe = r.targetId === meId;
+
+  if (mine) {
+    if (r.outcome === 'sunk') {
+      play('sunk');
+      haptic('heavy');
+    } else if (r.outcome === 'hit') {
+      play('hit');
+      haptic('medium');
+    } else if (r.outcome === 'mine') {
+      play('mine');
+      haptic('error');
+    } else {
+      play('splash');
+      haptic('light');
+    }
+    return;
+  }
+
+  if (atMe) {
+    // По нам попали — этот звук должен вырывать из размышлений.
+    if (r.outcome === 'sunk') {
+      play('alarmSunk');
+      haptic('error');
+      flashAlarm();
+    } else if (r.outcome === 'hit') {
+      play('alarm');
+      haptic('warning');
+      flashAlarm();
+    } else if (r.outcome === 'miss') {
+      play('splashFar');
+    }
+  }
 }

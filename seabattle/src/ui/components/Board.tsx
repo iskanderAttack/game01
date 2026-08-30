@@ -26,6 +26,8 @@ export interface BoardProps {
   /** Отпускание пальца сразу совершает действие. */
   commitOnRelease?: boolean;
   showCoords?: boolean;
+  /** Дополнительный класс обёртки: own — своё поле поменьше, dense — плотная сетка. */
+  wrapClass?: string;
 }
 
 interface ShipCellInfo {
@@ -53,6 +55,7 @@ export function Board({
   disabled,
   commitOnRelease,
   showCoords = true,
+  wrapClass = '',
 }: BoardProps) {
   const gridRef = useRef<HTMLDivElement>(null);
   const [magnifier, setMagnifier] = useState<{ x: number; y: number; cell: Coord } | null>(null);
@@ -225,14 +228,14 @@ export function Board({
 
   if (!showCoords) {
     return (
-      <div className="board-wrap" style={{ ['--n' as string]: size }}>
+      <div className={`board-wrap ${wrapClass}`} style={{ ['--n' as string]: size }}>
         {grid}
       </div>
     );
   }
 
   return (
-    <div className="board-wrap" style={{ ['--n' as string]: size }}>
+    <div className={`board-wrap ${wrapClass}`} style={{ ['--n' as string]: size }}>
       <div className="board-layout">
         <div />
         <div className="board-axis cols">

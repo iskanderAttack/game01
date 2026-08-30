@@ -88,6 +88,9 @@ export type SoundName =
   | 'splash'
   | 'hit'
   | 'sunk'
+  | 'alarm'
+  | 'alarmSunk'
+  | 'splashFar'
   | 'sonar'
   | 'mine'
   | 'win'
@@ -122,11 +125,36 @@ export function play(name: SoundName) {
       tone({ freq: 150, duration: 0.26, type: 'sawtooth', gain: 0.12, sweepTo: 55 });
       break;
     case 'sunk':
-      noise({ duration: 0.6, gain: 0.26, freq: 260, sweepTo: 60, q: 0.5 });
-      tone({ freq: 120, duration: 0.5, type: 'sawtooth', gain: 0.14, sweepTo: 40 });
-      [196, 165, 131].forEach((f, i) =>
-        tone({ freq: f, duration: 0.34, type: 'triangle', gain: 0.09, delay: 0.18 + i * 0.11 }),
+      // Особый взрыв: раскат громче обычного попадания, следом уход корабля под воду.
+      noise({ duration: 0.75, gain: 0.3, freq: 300, sweepTo: 50, q: 0.45 });
+      noise({ duration: 0.4, gain: 0.18, freq: 900, sweepTo: 180, q: 0.7, delay: 0.06 });
+      tone({ freq: 130, duration: 0.62, type: 'sawtooth', gain: 0.16, sweepTo: 34 });
+      [220, 175, 139, 110].forEach((f, i) =>
+        tone({ freq: f, duration: 0.38, type: 'triangle', gain: 0.1, delay: 0.2 + i * 0.12 }),
       );
+      break;
+
+    case 'splashFar':
+      // Промах соперника по нам — тихий плеск, чтобы не отвлекал.
+      noise({ duration: 0.26, gain: 0.07, freq: 1100, sweepTo: 320, q: 0.9 });
+      break;
+
+    case 'alarm':
+      // Попали по нашему кораблю: резкая сирена, её невозможно не заметить.
+      noise({ duration: 0.34, gain: 0.2, freq: 380, sweepTo: 110, q: 0.6 });
+      [880, 1240, 880, 1240].forEach((f, i) =>
+        tone({ freq: f, duration: 0.13, type: 'square', gain: 0.11, delay: 0.05 + i * 0.13 }),
+      );
+      tone({ freq: 180, duration: 0.42, type: 'sawtooth', gain: 0.1, sweepTo: 70, delay: 0.02 });
+      break;
+
+    case 'alarmSunk':
+      // Наш корабль потоплен: та же сирена, но тяжелее и длиннее.
+      noise({ duration: 0.8, gain: 0.28, freq: 320, sweepTo: 48, q: 0.45 });
+      [740, 1100, 740, 1100, 740].forEach((f, i) =>
+        tone({ freq: f, duration: 0.16, type: 'square', gain: 0.12, delay: 0.06 + i * 0.16 }),
+      );
+      tone({ freq: 150, duration: 0.7, type: 'sawtooth', gain: 0.15, sweepTo: 38 });
       break;
     case 'sonar':
       tone({ freq: 1180, duration: 0.5, type: 'sine', gain: 0.1, sweepTo: 880 });
