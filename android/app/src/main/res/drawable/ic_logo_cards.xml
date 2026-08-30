@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Две карты «молчать» и «сдать» — знак игры. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:pivotX="40"
+        android:pivotY="54"
+        android:rotation="-13">
+        <path
+            android:pathData="M30,32 h20 a6,6 0 0 1 6,6 v32 a6,6 0 0 1 -6,6 h-20 a6,6 0 0 1 -6,-6 v-32 a6,6 0 0 1 6,-6 z"
+            android:fillColor="#34D399"
+            android:fillAlpha="0.92"
+            android:strokeColor="#B9FFE4"
+            android:strokeWidth="1.4"
+            android:strokeAlpha="0.55" />
+    </group>
+
+    <group
+        android:pivotX="68"
+        android:pivotY="54"
+        android:rotation="13">
+        <path
+            android:pathData="M58,32 h20 a6,6 0 0 1 6,6 v32 a6,6 0 0 1 -6,6 h-20 a6,6 0 0 1 -6,-6 v-32 a6,6 0 0 1 6,-6 z"
+            android:fillColor="#FB7185"
+            android:fillAlpha="0.92"
+            android:strokeColor="#FFD5DD"
+            android:strokeWidth="1.4"
+            android:strokeAlpha="0.55" />
+        <path
+            android:pathData="M64,44 h8 v20 h-8 z"
+            android:fillColor="#FFFFFF"
+            android:fillAlpha="0.18" />
+    </group>
+</vector>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Дилемма заключённого</string>
+    <string name="title_activity_main">Дилемма заключённого</string>
+    <string name="package_name">com.dilemma.prisoners</string>
+    <string name="custom_url_scheme">com.dilemma.prisoners</string>
+</resources>
