@@ -1,17 +1,12 @@
 import { ABILITIES } from '../../game/abilities';
 import { tap } from '../../lib/feedback';
 
+/** Значок энергии: только молния и число — точки не помещались на телефон. */
 export function EnergyBar({ energy }: { energy: number }) {
-  const dots = Math.min(energy, 12);
   return (
     <div className="energy-bar">
       <span>⚡</span>
       <span className="mono">{energy}</span>
-      <span className="energy-dots">
-        {Array.from({ length: dots }).map((_, i) => (
-          <i key={i} />
-        ))}
-      </span>
     </div>
   );
 }

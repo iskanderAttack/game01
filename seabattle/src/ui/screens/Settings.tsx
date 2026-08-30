@@ -72,7 +72,7 @@ export function SettingsScreen() {
             <div>
               <div style={{ fontWeight: 700 }}>Морской бой</div>
               <div className="muted" style={{ fontSize: 13 }}>
-                Версия 1.0.2 · офлайн и по Wi-Fi
+                Версия 1.0.3 · офлайн и по Wi-Fi
               </div>
             </div>
           </div>

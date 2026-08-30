@@ -3,7 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 import { useApp, useCurrentView, useNeedsHandoff } from '../../store/appStore';
 import { getAbility } from '../../game/abilities';
 import { getMode } from '../../game/modes';
-import { cellName } from '../../game/coords';
+import { cellName, inBoard, key } from '../../game/coords';
 import { NONE, type Coord, type ShotRecord } from '../../game/types';
 import { Screen, Sheet } from '../components/Shell';
 import { Board } from '../components/Board';
@@ -13,6 +13,20 @@ import { PassDevice } from '../components/PassDevice';
 import { Avatar, FleetStrip } from '../components/PlayerBits';
 import { castEverywhere, fireEverywhere, selectTargetEverywhere } from '../../net/bridge';
 import { haptic, play, tap } from '../../lib/feedback';
+import type { ClientView } from '../../game/engine';
+
+/** Вспышка на клетках, по которым только что отработала способность. */
+interface Flash {
+  id: number;
+  board: 'enemy' | 'own';
+  cells: Set<string>;
+}
+
+interface Echo {
+  id: number;
+  emoji: string;
+  text: string;
+}
 
 export function GameScreen() {
   const view = useCurrentView();
@@ -20,7 +34,6 @@ export function GameScreen() {
   const quitGame = useApp((s) => s.quitGame);
   const handoff = useNeedsHandoff();
 
-  const [aim, setAim] = useState<Coord | null>(null);
   const [ability, setAbility] = useState<string | null>(null);
   const [lineAxis, setLineAxis] = useState<'row' | 'col'>('row');
   const [gateFor, setGateFor] = useState<string | null>(null);
@@ -28,6 +41,8 @@ export function GameScreen() {
   const [logOpen, setLogOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [alarm, setAlarm] = useState(0);
+  const [flash, setFlash] = useState<Flash | null>(null);
+  const [echo, setEcho] = useState<Echo | null>(null);
   const [left, setLeft] = useState(0);
 
   const turnOfId = view?.turnOfId ?? null;
@@ -36,9 +51,12 @@ export function GameScreen() {
   const prevTurnRef = useRef<string | null>(null);
   const seenLogRef = useRef(0);
 
-  /* Сброс прицела и способности при смене хода. */
+  // Свежий вид нужен внутри таймеров, где замыкание уже устарело.
+  const viewRef = useRef<ClientView | null>(null);
+  viewRef.current = view;
+
+  /* Сброс способности при смене хода. */
   useEffect(() => {
-    setAim(null);
     setAbility(null);
     setNotice(null);
     if (turnOfId && prevTurnRef.current !== turnOfId) {
@@ -64,6 +82,19 @@ export function GameScreen() {
     for (const r of fresh) soundFor(r, view.me.id, () => setAlarm((n) => n + 1));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logLength]);
+
+  /* Вспышка и плашка живут недолго. */
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), 1600);
+    return () => clearTimeout(t);
+  }, [flash]);
+
+  useEffect(() => {
+    if (!echo) return;
+    const t = setTimeout(() => setEcho(null), 6000);
+    return () => clearTimeout(t);
+  }, [echo]);
 
   /* Таймер хода: время вышло — стреляем в первую свободную клетку. */
   useEffect(() => {
@@ -117,10 +148,12 @@ export function GameScreen() {
   /* ─────────────────────────── действия ─────────────────────────── */
 
   function autoShot() {
-    if (!view || !target) return;
-    for (let y = 0; y < target.board.size; y++) {
-      for (let x = 0; x < target.board.size; x++) {
-        if (target.board.shots[y][x] === NONE) {
+    const v = viewRef.current;
+    const t = v?.enemies.find((e) => e.id === v.targetId) ?? v?.enemies.find((e) => e.alive);
+    if (!t) return;
+    for (let y = 0; y < t.board.size; y++) {
+      for (let x = 0; x < t.board.size; x++) {
+        if (t.board.shots[y][x] === NONE) {
           fireEverywhere(x, y);
           return;
         }
@@ -130,14 +163,15 @@ export function GameScreen() {
 
   const canShoot = (c: Coord) => !!target && target.alive && target.board.shots[c.y]?.[c.x] === NONE;
 
-  const doFire = (c: Coord) => {
-    if (!myTurn || !target || !canShoot(c)) return;
-    fireEverywhere(c.x, c.y);
-    setAim(null);
+  /** Показывает, куда именно ударила способность. */
+  const showEffect = (board: 'enemy' | 'own', cells: Coord[]) => {
+    if (cells.length === 0) return;
+    setFlash({ id: Date.now(), board, cells: new Set(cells.map((c) => key(c.x, c.y))) });
   };
 
   const doAbility = (c?: Coord) => {
     if (!selectedAbility || !view) return;
+    const size = view.settings.boardSize;
     const params: Record<string, unknown> = { targetId: target?.id };
 
     switch (selectedAbility.target) {
@@ -162,20 +196,44 @@ export function GameScreen() {
         break;
     }
 
-    const error = castEverywhere(selectedAbility.id, params);
+    const revealedBefore = target ? target.board.intel.revealed.length : 0;
+    const used = selectedAbility;
+
+    const error = castEverywhere(used.id, params);
     if (error) {
       haptic('error');
       setNotice(error);
       return;
     }
-    play(selectedAbility.id === 'mine' ? 'mine' : 'sonar');
+
+    // Подсвечиваем область, по которой отработала способность.
+    const { board, cells } = affectedArea(used.id, used.target, c, lineAxis, size, view.me.id === view.me.id);
+    showEffect(board, cells);
+
+    play(used.id === 'mine' ? 'mine' : 'sonar');
     haptic('success');
     setAbility(null);
-    setAim(null);
     setNotice(null);
+
+    // Итог приходит в журнал чуть позже — забираем его для плашки,
+    // а спутник заодно подсвечивает раскрытую клетку.
+    setTimeout(() => {
+      const fresh = useApp.getState().feed;
+      const line = fresh.find((l) => l.includes(used.emoji)) ?? fresh[0] ?? `${used.name}: применено`;
+      // Строка журнала часто уже начинается с того же значка — не дублируем.
+      const text = line.startsWith(used.emoji) ? line.slice(used.emoji.length).trim() : line;
+      setEcho({ id: Date.now(), emoji: used.emoji, text });
+
+      if (used.id === 'satellite') {
+        const v = viewRef.current;
+        const t = v?.enemies.find((e) => e.id === params.targetId);
+        const spots = t?.board.intel.revealed ?? [];
+        if (spots.length > revealedBefore) showEffect('enemy', [spots[spots.length - 1]]);
+      }
+    }, 320);
   };
 
-  /** Первый тап ставит жёлтый прицел, второй по той же клетке — стреляет. */
+  /** Одно касание — сразу залп. Прицеливание убрано: оно только сбивало. */
   const onEnemyTap = (c: Coord) => {
     if (!myTurn) return;
 
@@ -191,21 +249,17 @@ export function GameScreen() {
       return;
     }
 
-    if (aim && aim.x === c.x && aim.y === c.y) {
-      doFire(c);
-      return;
-    }
-
-    setAim(c);
     setNotice(null);
-    play('select');
-    haptic('light');
+    fireEverywhere(c.x, c.y);
   };
 
   const onOwnTap = (c: Coord) => {
     if (!myTurn || !needsOwnBoard) return;
     doAbility(c);
   };
+
+  const enemyFlash = flash?.board === 'enemy' ? flash.cells : undefined;
+  const ownFlash = flash?.board === 'own' ? flash.cells : undefined;
 
   /* ─────────────────────────── отрисовка ─────────────────────────── */
 
@@ -245,12 +299,11 @@ export function GameScreen() {
               mode="enemy"
               sunk={target.board.sunk}
               intel={target.board.intel}
-              aim={aim}
-              onAim={() => {}}
               onCommit={onEnemyTap}
               commitOnRelease
               disabled={!myTurn || !target.alive || needsOwnBoard}
               wrapClass={dense ? 'dense' : ''}
+              flash={enemyFlash}
             />
             <FleetStrip fleetId={view.settings.fleetId} sunk={target.board.sunk} />
           </>
@@ -258,11 +311,23 @@ export function GameScreen() {
           <div className="notice">Все соперники потоплены.</div>
         )}
 
+        {echo && (
+          <div className="ability-echo">
+            <span className="echo-emoji">{echo.emoji}</span>
+            <span>{echo.text}</span>
+          </div>
+        )}
+
         {notice && <div className="notice warn">{notice}</div>}
 
-        {myTurn && !selectedAbility && (
-          <div className="hint-line">
-            {aim ? `Нажмите ${cellName(aim.x, aim.y)} ещё раз — залп` : 'Коснитесь клетки, чтобы прицелиться'}
+        {selectedAbility && (
+          <div className="notice">
+            {selectedAbility.emoji} <b>{selectedAbility.name}</b> — {selectedAbility.short}.{' '}
+            {selectedAbility.target === 'enemyCell' && 'Коснитесь клетки на карте соперника.'}
+            {selectedAbility.target === 'enemyLine' && 'Выберите направление и коснитесь клетки.'}
+            {selectedAbility.target === 'ownCell' && 'Коснитесь клетки на своей карте.'}
+            {(selectedAbility.target === 'self' || selectedAbility.target === 'enemyBoard') &&
+              'Нажмите «Применить».'}
           </div>
         )}
 
@@ -306,6 +371,7 @@ export function GameScreen() {
               disabled={!needsOwnBoard}
               showCoords={false}
               wrapClass="own"
+              flash={ownFlash}
             />
           </div>
           <div className="own-side info">
@@ -329,7 +395,6 @@ export function GameScreen() {
             selected={ability}
             onSelect={(id) => {
               setAbility(id);
-              setAim(null);
               setNotice(null);
             }}
             disabled={!myTurn}
@@ -391,6 +456,54 @@ export function GameScreen() {
       </AnimatePresence>
     </Screen>
   );
+}
+
+/** Какие клетки задела способность — по ним пойдёт вспышка. */
+function affectedArea(
+  id: string,
+  targetKind: string,
+  c: Coord | undefined,
+  axis: 'row' | 'col',
+  size: number,
+  _self: boolean,
+): { board: 'enemy' | 'own'; cells: Coord[] } {
+  const cells: Coord[] = [];
+
+  if (id === 'radar' && c) {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (inBoard(size, c.x + dx, c.y + dy)) cells.push({ x: c.x + dx, y: c.y + dy });
+      }
+    }
+    return { board: 'enemy', cells };
+  }
+
+  if ((id === 'recon' || id === 'torpedo') && c) {
+    const index = axis === 'row' ? c.y : c.x;
+    for (let i = 0; i < size; i++) {
+      cells.push(axis === 'row' ? { x: i, y: index } : { x: index, y: i });
+    }
+    return { board: 'enemy', cells };
+  }
+
+  if (id === 'salvo' && c) {
+    for (let i = 0; i < 3; i++) {
+      if (inBoard(size, c.x + i, c.y)) cells.push({ x: c.x + i, y: c.y });
+    }
+    return { board: 'enemy', cells };
+  }
+
+  if ((id === 'repair' || id === 'mine') && c) {
+    return { board: 'own', cells: [c] };
+  }
+
+  if (id === 'smoke') {
+    // Дым застилает всё своё поле.
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) cells.push({ x, y });
+    return { board: 'own', cells };
+  }
+
+  return { board: targetKind === 'ownCell' ? 'own' : 'enemy', cells };
 }
 
 /** Звук и отдача по фактическому исходу выстрела. */

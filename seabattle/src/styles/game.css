@@ -83,14 +83,18 @@
 }
 
 .menu-title {
+  display: block;
   font-size: 16px;
   font-weight: 700;
+  line-height: 1.25;
 }
 
 .menu-note {
+  display: block;
   font-size: 12.5px;
   color: var(--faint);
-  margin-top: 2px;
+  margin-top: 5px;
+  line-height: 1.4;
 }
 
 .profile-badge {
@@ -670,23 +674,18 @@
 }
 
 .energy-bar {
-  display: flex;
+  flex: none;
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.energy-dots {
-  display: flex;
-  gap: 3px;
-}
-
-.energy-dots i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--gold);
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(251, 191, 36, 0.16);
+  border: 1px solid rgba(251, 191, 36, 0.34);
+  color: var(--gold);
+  font-size: 13.5px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 /* Журнал боя. */
@@ -1095,4 +1094,99 @@
 
 .screen.battle {
   gap: 10px;
+}
+
+/* ───────────────── следы применённых способностей ───────────────── */
+
+/* Вспышка области сразу после применения. */
+.cell.flash::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(167, 139, 250, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(226, 214, 255, 0.9);
+  animation: abilityFlash 1.5s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes abilityFlash {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* Просвеченный радаром квадрат остаётся подкрашенным. */
+.cell.radar-area {
+  background: rgba(167, 139, 250, 0.24);
+  border-color: rgba(167, 139, 250, 0.3);
+}
+
+/* Пустой квадрат — там точно нет кораблей. */
+.cell.radar-empty {
+  background: rgba(124, 147, 171, 0.16);
+}
+
+/* Линия, пройденная авиаразведкой. */
+.cell.scanned {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: rgba(56, 189, 248, 0.24);
+}
+
+/* Число палуб, найденных радаром, — прямо в центре квадрата. */
+.radar-badge {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.72em;
+  font-weight: 850;
+  color: #ddd0ff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+
+/* Клетка, вскрытая спутником: там точно корабль. */
+.cell.revealed::after {
+  content: '◎';
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 0.78em;
+}
+
+/* Счётчик рядом с буквой или цифрой оси после авиаразведки. */
+.board-axis span.scanned-axis {
+  color: var(--accent);
+  font-weight: 850;
+}
+
+/* Плашка о последнем применении способности. */
+.ability-echo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  background: rgba(167, 139, 250, 0.16);
+  border: 1px solid rgba(167, 139, 250, 0.42);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.ability-echo .echo-emoji {
+  font-size: 20px;
+  flex: none;
+}
+
+.radar-badge.line {
+  color: #bfe9ff;
 }

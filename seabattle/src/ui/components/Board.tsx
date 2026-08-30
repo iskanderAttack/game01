@@ -28,6 +28,8 @@ export interface BoardProps {
   showCoords?: boolean;
   /** Дополнительный класс обёртки: own — своё поле поменьше, dense — плотная сетка. */
   wrapClass?: string;
+  /** Клетки, по которым только что отработала способность, — подсвечиваются вспышкой. */
+  flash?: Set<string>;
 }
 
 interface ShipCellInfo {
@@ -56,6 +58,7 @@ export function Board({
   commitOnRelease,
   showCoords = true,
   wrapClass = '',
+  flash,
 }: BoardProps) {
   const gridRef = useRef<HTMLDivElement>(null);
   const [magnifier, setMagnifier] = useState<{ x: number; y: number; cell: Coord } | null>(null);
@@ -99,17 +102,63 @@ export function Board({
     return set;
   }, [intel]);
 
-  const radarCells = useMemo(() => {
+  /**
+   * Следы разведки на карте.
+   *
+   * Без них способности выглядят так, будто ничего не произошло:
+   * энергия ушла, а на поле — пусто. Поэтому просвеченный радаром
+   * квадрат остаётся подкрашенным, а найденное число палуб пишется
+   * прямо в его центре.
+   */
+  const radarArea = useMemo(() => {
     const set = new Set<string>();
     for (const r of intel?.radar ?? []) {
-      if (r.count === 0) {
-        // Пустой квадрат можно смело вычеркнуть целиком.
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) set.add(key(r.x + dx, r.y + dy));
-        }
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) set.add(key(r.x + dx, r.y + dy));
       }
     }
     return set;
+  }, [intel]);
+
+  const radarEmpty = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of intel?.radar ?? []) {
+      if (r.count !== 0) continue;
+      // Пустой квадрат можно смело вычеркнуть целиком.
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) set.add(key(r.x + dx, r.y + dy));
+      }
+    }
+    return set;
+  }, [intel]);
+
+  const radarBadges = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of intel?.radar ?? []) {
+      if (r.count > 0) map.set(key(r.x, r.y), r.count);
+    }
+    return map;
+  }, [intel]);
+
+  const scannedRows = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const l of intel?.lines ?? []) if (l.axis === 'row') map.set(l.index, l.count);
+    return map;
+  }, [intel]);
+
+  const scannedCols = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const l of intel?.lines ?? []) if (l.axis === 'col') map.set(l.index, l.count);
+    return map;
+  }, [intel]);
+
+  /** Счётчик авиаразведки — в первой клетке просвеченной линии. */
+  const lineBadges = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const l of intel?.lines ?? []) {
+      map.set(l.axis === 'row' ? key(0, l.index) : key(l.index, 0), l.count);
+    }
+    return map;
   }, [intel]);
 
   /* ─────────────────────── работа с указателем ─────────────────────── */
@@ -200,12 +249,27 @@ export function Board({
       if (isSunkCell && mark !== HIT) classes.push('sunk');
       if (mode === 'own' && mines.some((m) => m.x === x && m.y === y)) classes.push('mine');
       if (mode === 'enemy' && revealed.has(k) && mark === NONE) classes.push('revealed');
-      if (mode === 'enemy' && radarCells.has(k) && mark === NONE) classes.push('radar');
+      if (mode === 'enemy' && mark === NONE) {
+        if (radarEmpty.has(k)) classes.push('radar-empty');
+        else if (radarArea.has(k)) classes.push('radar-area');
+        else if (scannedRows.has(y) || scannedCols.has(x)) classes.push('scanned');
+      }
       if (previewCells.has(k)) classes.push(preview?.ok ? 'preview-ok' : 'preview-bad');
       if (mode === 'placement' && !info && forbidden?.has(k)) classes.push('forbidden');
       if (aim && aim.x === x && aim.y === y) classes.push('aim');
+      if (flash?.has(k)) classes.push('flash');
 
-      cells.push(<div key={k} className={classes.join(' ')} />);
+      const radarCount = mode === 'enemy' ? radarBadges.get(k) : undefined;
+      const lineCount = mode === 'enemy' ? lineBadges.get(k) : undefined;
+
+      cells.push(
+        <div key={k} className={classes.join(' ')}>
+          {radarCount !== undefined && mark === NONE && <span className="radar-badge">{radarCount}</span>}
+          {radarCount === undefined && lineCount !== undefined && mark === NONE && (
+            <span className="radar-badge line">{lineCount}</span>
+          )}
+        </div>,
+      );
     }
   }
 
@@ -240,12 +304,16 @@ export function Board({
         <div />
         <div className="board-axis cols">
           {Array.from({ length: size }).map((_, i) => (
-            <span key={i}>{i + 1}</span>
+            <span key={i} className={scannedCols.has(i) ? 'scanned-axis' : undefined}>
+              {i + 1}
+            </span>
           ))}
         </div>
         <div className="board-axis rows">
           {Array.from({ length: size }).map((_, i) => (
-            <span key={i}>{rowLetter(i)}</span>
+            <span key={i} className={scannedRows.has(i) ? 'scanned-axis' : undefined}>
+              {rowLetter(i)}
+            </span>
           ))}
         </div>
         {grid}
