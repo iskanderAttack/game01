@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Волны под якорем -->
+    <path
+        android:pathData="M26,74 q7,-6 14,0 t14,0 t14,0 t14,0"
+        android:strokeColor="#5538BDF8"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M26,82 q7,-6 14,0 t14,0 t14,0 t14,0"
+        android:strokeColor="#3338BDF8"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round" />
+
+    <!-- Кольцо якоря -->
+    <path
+        android:pathData="M54,26 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0"
+        android:strokeColor="#FFE6F6FF"
+        android:strokeWidth="4.2" />
+
+    <!-- Шток -->
+    <path
+        android:pathData="M54,32 L54,70"
+        android:strokeColor="#FFE6F6FF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+
+    <!-- Перекладина -->
+    <path
+        android:pathData="M40,41 L68,41"
+        android:strokeColor="#FFE6F6FF"
+        android:strokeWidth="4.6"
+        android:strokeLineCap="round" />
+
+    <!-- Лапы -->
+    <path
+        android:pathData="M30,54 q0,20 24,20 q24,0 24,-20"
+        android:strokeColor="#FF38BDF8"
+        android:strokeWidth="5.4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M30,54 L23,58 M30,54 L32,46"
+        android:strokeColor="#FF38BDF8"
+        android:strokeWidth="4.4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M78,54 L85,58 M78,54 L76,46"
+        android:strokeColor="#FF38BDF8"
+        android:strokeWidth="4.4"
+        android:strokeLineCap="round" />
+</vector>

@@ -24,7 +24,8 @@ export type Screen =
   | 'academy'
   | 'strategies'
   | 'settings'
-  | 'net';
+  | 'net'
+  | 'games';
 
 export type NetRole = 'local' | 'host' | 'client';
 

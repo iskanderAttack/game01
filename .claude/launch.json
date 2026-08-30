@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "seabattle-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "seabattle", "run", "dev"],
+      "port": 5174
     }
   ]
 }

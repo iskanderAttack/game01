@@ -46,6 +46,14 @@ export function HomeScreen() {
       onClick: () => go('strategies'),
     },
     {
+      id: 'games',
+      emoji: '🎁',
+      title: 'Наши игры',
+      desc: 'Что ещё можно поставить на телефон',
+      accent: '#34D399',
+      onClick: () => go('games'),
+    },
+    {
       id: 'settings',
       emoji: '⚙️',
       title: 'Настройки',

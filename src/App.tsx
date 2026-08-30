@@ -12,6 +12,7 @@ import { AcademyScreen } from './ui/screens/Academy';
 import { StrategiesScreen } from './ui/screens/Strategies';
 import { SettingsScreen } from './ui/screens/Settings';
 import { NetScreen } from './ui/screens/Net';
+import { GamesScreen } from './ui/screens/Games';
 import { SafeMotion } from './ui/components/Shell';
 import { ErrorBoundary } from './ui/components/ErrorBoundary';
 import { diag } from './lib/diag';
@@ -109,6 +110,7 @@ export default function App() {
       {screen === 'strategies' && <StrategiesScreen key="strategies" />}
       {screen === 'settings' && <SettingsScreen key="settings" />}
       {screen === 'net' && <NetScreen key="net" />}
+      {screen === 'games' && <GamesScreen key="games" />}
     </>
   );
 

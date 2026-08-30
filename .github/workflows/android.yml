@@ -3,9 +3,16 @@ name: Сборка APK
 on:
   push:
     branches: [main, master]
+    # Игры собираются раздельно: правки «Морского боя» не трогают эту сборку.
+    paths-ignore:
+      - 'seabattle/**'
+      - '.github/workflows/seabattle.yml'
+      - 'share/**'
     tags: ['v*']
   pull_request:
     branches: [main, master]
+    paths-ignore:
+      - 'seabattle/**'
   workflow_dispatch:
     inputs:
       release_notes:
