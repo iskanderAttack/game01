@@ -34,6 +34,7 @@ export function GameScreen() {
   const quitGame = useApp((s) => s.quitGame);
   const handoff = useNeedsHandoff();
 
+  const [aim, setAim] = useState<Coord | null>(null);
   const [ability, setAbility] = useState<string | null>(null);
   const [lineAxis, setLineAxis] = useState<'row' | 'col'>('row');
   const [gateFor, setGateFor] = useState<string | null>(null);
@@ -55,8 +56,9 @@ export function GameScreen() {
   const viewRef = useRef<ClientView | null>(null);
   viewRef.current = view;
 
-  /* Сброс способности при смене хода. */
+  /* Сброс прицела и способности при смене хода. */
   useEffect(() => {
+    setAim(null);
     setAbility(null);
     setNotice(null);
     if (turnOfId && prevTurnRef.current !== turnOfId) {
@@ -213,6 +215,7 @@ export function GameScreen() {
     play(used.id === 'mine' ? 'mine' : 'sonar');
     haptic('success');
     setAbility(null);
+    setAim(null);
     setNotice(null);
 
     // Итог приходит в журнал чуть позже — забираем его для плашки,
@@ -233,7 +236,10 @@ export function GameScreen() {
     }, 320);
   };
 
-  /** Одно касание — сразу залп. Прицеливание убрано: оно только сбивало. */
+  /**
+   * Первый тап ставит жёлтый прицел, второй по той же клетке — залп.
+   * Пока залпа нет, прицел можно свободно переставить.
+   */
   const onEnemyTap = (c: Coord) => {
     if (!myTurn) return;
 
@@ -249,8 +255,16 @@ export function GameScreen() {
       return;
     }
 
+    if (aim && aim.x === c.x && aim.y === c.y) {
+      setAim(null);
+      fireEverywhere(c.x, c.y);
+      return;
+    }
+
+    setAim(c);
     setNotice(null);
-    fireEverywhere(c.x, c.y);
+    play('select');
+    haptic('light');
   };
 
   const onOwnTap = (c: Coord) => {
@@ -299,6 +313,7 @@ export function GameScreen() {
               mode="enemy"
               sunk={target.board.sunk}
               intel={target.board.intel}
+              aim={aim}
               onCommit={onEnemyTap}
               commitOnRelease
               disabled={!myTurn || !target.alive || needsOwnBoard}
@@ -309,6 +324,14 @@ export function GameScreen() {
           </>
         ) : (
           <div className="notice">Все соперники потоплены.</div>
+        )}
+
+        {myTurn && !selectedAbility && target && (
+          <div className="hint-line">
+            {aim
+              ? `Нажмите ${cellName(aim.x, aim.y)} ещё раз — залп`
+              : 'Коснитесь клетки, чтобы прицелиться'}
+          </div>
         )}
 
         {echo && (

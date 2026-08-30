@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useMemo, useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import { shipCells } from '../../game/board';
-import { cellName, key, rowLetter } from '../../game/coords';
+import { key, rowLetter } from '../../game/coords';
 import { HIT, MISS, NONE, type Coord, type Intel, type Ship, type ShotMark, type SunkShipView } from '../../game/types';
 
 export type BoardMode = 'own' | 'enemy' | 'placement';
@@ -61,7 +61,6 @@ export function Board({
   flash,
 }: BoardProps) {
   const gridRef = useRef<HTMLDivElement>(null);
-  const [magnifier, setMagnifier] = useState<{ x: number; y: number; cell: Coord } | null>(null);
   const draggingRef = useRef(false);
 
   /* Карты для быстрой отрисовки клеток. */
@@ -194,10 +193,6 @@ export function Board({
     draggingRef.current = true;
     onAim?.(cell);
     onHover?.(cell);
-    if (mode === 'enemy') {
-      const rect = gridRef.current!.getBoundingClientRect();
-      setMagnifier({ x: e.clientX - rect.left, y: e.clientY - rect.top, cell });
-    }
   };
 
   const handleMove = (e: ReactPointerEvent) => {
@@ -206,17 +201,12 @@ export function Board({
     if (!cell) return;
     onAim?.(cell);
     onHover?.(cell);
-    if (mode === 'enemy') {
-      const rect = gridRef.current!.getBoundingClientRect();
-      setMagnifier({ x: e.clientX - rect.left, y: e.clientY - rect.top, cell });
-    }
   };
 
   const handleUp = (e: ReactPointerEvent) => {
     if (disabled) return;
     const wasDragging = draggingRef.current;
     draggingRef.current = false;
-    setMagnifier(null);
     if (!wasDragging) return;
 
     const cell = cellFromEvent(e) ?? aim ?? null;
@@ -282,11 +272,9 @@ export function Board({
       onPointerUp={handleUp}
       onPointerCancel={() => {
         draggingRef.current = false;
-        setMagnifier(null);
       }}
     >
       {cells}
-      {magnifier && <Magnifier grid={{ size, shots, sunk: sunkCells, revealed }} spot={magnifier} />}
     </div>
   );
 
@@ -318,58 +306,6 @@ export function Board({
         </div>
         {grid}
       </div>
-    </div>
-  );
-}
-
-/** Увеличенный кусочек поля над пальцем — палец закрывает саму клетку. */
-function Magnifier({
-  grid,
-  spot,
-}: {
-  grid: { size: number; shots: ShotMark[][]; sunk: Set<string>; revealed: Set<string> };
-  spot: { x: number; y: number; cell: Coord };
-}) {
-  const cells = [];
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      const x = spot.cell.x + dx;
-      const y = spot.cell.y + dy;
-      const inside = x >= 0 && y >= 0 && x < grid.size && y < grid.size;
-      const mark = inside ? grid.shots[y][x] : NONE;
-      const center = dx === 0 && dy === 0;
-      cells.push(
-        <div
-          key={`${dx},${dy}`}
-          style={{
-            opacity: inside ? 1 : 0.25,
-            boxShadow: center ? 'inset 0 0 0 2px var(--accent)' : undefined,
-            background:
-              mark === HIT
-                ? grid.sunk.has(key(x, y))
-                  ? 'var(--sunk-dim)'
-                  : 'var(--hit-dim)'
-                : mark === MISS
-                  ? 'var(--miss-dim)'
-                  : undefined,
-          }}
-        >
-          {mark === HIT ? '✕' : mark === MISS ? '·' : grid.revealed.has(key(x, y)) ? '◎' : ''}
-        </div>,
-      );
-    }
-  }
-
-  return (
-    <div
-      className="magnifier"
-      style={{
-        left: Math.max(0, Math.min(spot.x - 46, 999)),
-        top: spot.y - 128,
-      }}
-    >
-      <div className="mini">{cells}</div>
-      <div className="coord mono">{cellName(spot.cell.x, spot.cell.y)}</div>
     </div>
   );
 }
