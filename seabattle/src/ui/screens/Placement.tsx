@@ -78,14 +78,34 @@ export function PlacementScreen() {
   }, [board, hover, size, dir, allowTouching]);
 
   if (!board || !playerId) {
+    // Свои расставились, остались сетевые игроки — это ожидание, а не сбой.
+    const pending = game?.players.filter((p) => !p.ready) ?? [];
+    const waitingForOthers = !!game && game.phase === 'placement' && pending.length > 0;
+
     return (
       <Screen name="placement">
-        <div className="card center" style={{ padding: 30, marginTop: 40 }}>
-          <div className="shimmer" style={{ fontSize: 36 }}>⚓</div>
-          <div className="net-title" style={{ marginTop: 12 }}>Готовим карты</div>
-          <p className="muted" style={{ marginTop: 6 }}>Ждём данные партии.</p>
+        <TopBar title="Расстановка" subtitle={`${mode.emoji} ${mode.name}`} />
+        <div className="card center" style={{ padding: 30, marginTop: 20 }}>
+          <div className="shimmer" style={{ fontSize: 40 }}>⚓</div>
+          <div className="net-title" style={{ marginTop: 12 }}>
+            {waitingForOthers ? 'Флот на позиции' : 'Готовим карты'}
+          </div>
+          <p className="muted" style={{ marginTop: 6 }}>
+            {waitingForOthers
+              ? 'Ждём, пока остальные расставят свои корабли.'
+              : 'Ждём данные партии.'}
+          </p>
+          {waitingForOthers && (
+            <div className="wrap" style={{ marginTop: 14, justifyContent: 'center' }}>
+              {pending.map((p) => (
+                <span key={p.id} className="chip">
+                  {p.emoji} {p.name}
+                </span>
+              ))}
+            </div>
+          )}
           <button className="btn block" style={{ marginTop: 18 }} onClick={() => { tap(); quitGame(); }}>
-            На главный экран
+            {waitingForOthers ? 'Прервать бой' : 'На главный экран'}
           </button>
         </div>
       </Screen>
