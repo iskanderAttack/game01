@@ -56,7 +56,7 @@ export function HomeScreen() {
   ];
 
   return (
-    <Screen className="home">
+    <Screen name="home" className="home">
       <div className="home-head">
         <motion.button
           className="profile-badge"

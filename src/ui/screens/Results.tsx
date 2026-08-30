@@ -37,7 +37,7 @@ export function ResultsScreen() {
   const bestPossible = 'Идеальный мир';
 
   return (
-    <Screen className="results">
+    <Screen name="results" className="results">
       <Confetti />
       <TopBar title="Итоги партии" subtitle={`${mode.emoji} ${mode.name} · ${game.results.length} раундов`} />
 

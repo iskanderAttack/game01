@@ -9,7 +9,7 @@ export function ModesScreen() {
   const chooseMode = useApp((s) => s.chooseMode);
 
   return (
-    <Screen>
+    <Screen name="modes">
       <TopBar title="Режимы" subtitle="Правила подстраиваются под число игроков" onBack={() => go('home')} />
       <div className="scroll">
         {GAME_MODES.map((mode, i) => (

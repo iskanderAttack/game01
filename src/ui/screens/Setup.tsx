@@ -34,7 +34,7 @@ export function SetupScreen() {
   const humans = draft.filter((p) => !p.isBot).length;
 
   return (
-    <Screen>
+    <Screen name="setup">
       <TopBar
         title={`${mode.emoji} ${mode.name}`}
         subtitle={mode.tagline}

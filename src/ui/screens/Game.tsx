@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { currentTurnPlayer, useApp } from '../../store/appStore';
 import { getMode, wording } from '../../game/modes';
 import { ranking } from '../../game/engine';
-import { Screen, TopBar, Sheet } from '../components/Shell';
+import { Screen, TopBar, Sheet, Panel } from '../components/Shell';
 import { ChoiceStage } from '../components/ChoiceStage';
 import { RevealStage } from '../components/RevealStage';
 import { PassDevice } from '../components/PassDevice';
@@ -45,7 +45,34 @@ export function GameScreen() {
   // Фазы двигает хост: клиент просто ждёт следующего снимка состояния.
   useEffect(() => setWaitHost(false), [game?.phase, game?.round]);
 
-  if (!game || !mode) return null;
+  // Состояние ещё не приехало от хоста — показываем ожидание, а не пустоту.
+  if (!game || !mode) {
+    return (
+      <Screen name="game" className="game-screen">
+        <div className="card center" style={{ padding: 30, marginTop: 40 }}>
+          <div className="shimmer" style={{ fontSize: 36 }}>
+            🃏
+          </div>
+          <div className="net-title" style={{ marginTop: 12 }}>
+            Ждём партию
+          </div>
+          <p className="muted" style={{ marginTop: 6 }}>
+            Хост ещё не прислал состояние игры.
+          </p>
+          <button
+            className="btn block"
+            style={{ marginTop: 18 }}
+            onClick={() => {
+              tap();
+              quitGame();
+            }}
+          >
+            На главный экран
+          </button>
+        </div>
+      </Screen>
+    );
+  }
 
   const w = wording(game.settings.modeId);
   const waiting = game.players.filter((p) => !p.isBot && p.remote && !game.pending[p.id]);
@@ -60,7 +87,7 @@ export function GameScreen() {
   };
 
   return (
-    <Screen className="game-screen">
+    <Screen name="game" className="game-screen">
       <TopBar
         title={`${mode.emoji} ${mode.name}`}
         subtitle={roundLabel}
@@ -87,13 +114,7 @@ export function GameScreen() {
       <div className="scroll">
         <AnimatePresence mode="wait">
           {game.phase === 'briefing' && (
-            <motion.div
-              key="briefing"
-              className="stack"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-            >
+            <Panel key="briefing" name="briefing" className="stack">
               <div className="card glow briefing" style={{ borderColor: `${mode.accent}55` }}>
                 <div className="briefing-emoji">{mode.emoji}</div>
                 <h3 className="briefing-title">{mode.name}</h3>
@@ -135,11 +156,11 @@ export function GameScreen() {
                   Начать партию
                 </button>
               )}
-            </motion.div>
+            </Panel>
           )}
 
           {game.phase === 'collecting' && (
-            <motion.div key="collecting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <Panel key="collecting" name="collecting">
               {turnPlayer ? (
                 <ChoiceStage
                   key={`${turnPlayer.id}-${game.round}`}
@@ -151,11 +172,11 @@ export function GameScreen() {
               ) : (
                 <WaitingRoom names={waiting.map((p) => p.name)} />
               )}
-            </motion.div>
+            </Panel>
           )}
 
           {game.phase === 'reveal' && reveal && (
-            <motion.div key="reveal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <Panel key="reveal" name="reveal">
               <RevealStage
                 state={game}
                 result={reveal}
@@ -167,17 +188,11 @@ export function GameScreen() {
                 }}
               />
               {waitHost && <div className="waiting-hint">Ждём хоста…</div>}
-            </motion.div>
+            </Panel>
           )}
 
           {game.phase === 'scoreboard' && (
-            <motion.div
-              key="scoreboard"
-              className="stack"
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-            >
+            <Panel key="scoreboard" name="scoreboard" className="stack">
               <div className="label">Положение после {game.round} раунда</div>
               <div className="card" style={{ padding: 8 }}>
                 {ranking(game.players).map((p, i) => (
@@ -214,7 +229,7 @@ export function GameScreen() {
                   Раунд {game.round + 1} →
                 </button>
               )}
-            </motion.div>
+            </Panel>
           )}
         </AnimatePresence>
       </div>

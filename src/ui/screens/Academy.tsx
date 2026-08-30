@@ -11,7 +11,7 @@ export function AcademyScreen() {
   const [open, setOpen] = useState<string | null>(THEORY[0].id);
 
   return (
-    <Screen>
+    <Screen name="academy">
       <TopBar title="Академия" subtitle="Полторы минуты теории игр" onBack={() => go('home')} />
       <div className="scroll">
         <div className="card matrix-demo">

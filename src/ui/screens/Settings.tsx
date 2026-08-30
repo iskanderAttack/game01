@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useApp, DEFAULT_SETTINGS } from '../../store/appStore';
 import { Screen, TopBar, SectionTitle } from '../components/Shell';
 import { Segmented, Stepper, Toggle } from '../components/controls';
 import { play, tap } from '../../lib/feedback';
+import { diagEntries, diagText } from '../../lib/diag';
 
 export function SettingsScreen() {
   const go = useApp((s) => s.go);
@@ -9,7 +11,7 @@ export function SettingsScreen() {
   const setSettings = useApp((s) => s.setSettings);
 
   return (
-    <Screen>
+    <Screen name="settings">
       <TopBar title="Настройки" onBack={() => go('home')} />
       <div className="scroll">
         <SectionTitle>Ощущения</SectionTitle>
@@ -99,13 +101,15 @@ export function SettingsScreen() {
           Сбросить к заводским
         </button>
 
+        <DiagnosticsCard />
+
         <div className="card about">
           <div className="row">
             <span style={{ fontSize: 30 }}>🤝</span>
             <div>
               <div style={{ fontWeight: 700 }}>Дилемма заключённого</div>
               <div className="muted" style={{ fontSize: 13 }}>
-                Версия 1.0 · офлайн и по Wi-Fi
+                Версия 1.0.1 · офлайн и по Wi-Fi
               </div>
             </div>
           </div>
@@ -116,5 +120,69 @@ export function SettingsScreen() {
         </div>
       </div>
     </Screen>
+  );
+}
+
+/** Журнал последних событий — чтобы было что показать, если что-то сломалось. */
+function DiagnosticsCard() {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const entries = diagEntries();
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(diagText());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <div className="card stack">
+      <button
+        className="row between"
+        style={{ background: 'none', border: 0, padding: 0, width: '100%', color: 'inherit' }}
+        onClick={() => {
+          tap();
+          setOpen((v) => !v);
+        }}
+      >
+        <span className="label">🩺 Диагностика</span>
+        <span className="muted">{open ? 'скрыть' : 'показать'}</span>
+      </button>
+
+      {open && (
+        <>
+          <p className="muted" style={{ fontSize: 13 }}>
+            Последние {entries.length} событий этого запуска. Если игра повела себя странно, скопируйте
+            журнал и пришлите — по нему видно, что случилось.
+          </p>
+          <div
+            className="mono"
+            style={{
+              fontSize: 11,
+              lineHeight: 1.6,
+              maxHeight: 200,
+              overflowY: 'auto',
+              opacity: 0.75,
+              wordBreak: 'break-word',
+            }}
+          >
+            {entries.length === 0 && <div>Пока пусто.</div>}
+            {entries.map((e, i) => (
+              <div key={i}>
+                {new Date(e.at).toLocaleTimeString('ru-RU')} · {e.tag}
+                {e.info ? ' — ' + e.info : ''}
+              </div>
+            ))}
+          </div>
+          <button className="btn block" onClick={copy}>
+            {copied ? 'Скопировано ✓' : 'Скопировать журнал'}
+          </button>
+        </>
+      )}
+    </div>
   );
 }

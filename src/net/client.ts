@@ -15,6 +15,7 @@ import {
 } from './protocol';
 import { play } from '../lib/feedback';
 import type { Move } from '../game/types';
+import { diag } from '../lib/diag';
 
 export type ClientStatus = 'idle' | 'connecting' | 'lobby' | 'playing' | 'error' | 'closed';
 
@@ -79,11 +80,13 @@ export function connectToRoom(ip: string, port = DEFAULT_PORT, code = '') {
 
     switch (msg.t) {
       case 'welcome':
+        diag('сеть', 'принят в комнату');
         useClient.setState({ status: 'lobby', playerId: msg.playerId, room: msg.room, error: null });
         app.setNetRole('client', msg.playerId);
         play('event');
         break;
       case 'reject':
+        diag('сеть', 'отказ: ' + msg.reason);
         useClient.setState({ status: 'error', error: msg.reason });
         socket.close();
         break;
@@ -92,10 +95,12 @@ export function connectToRoom(ip: string, port = DEFAULT_PORT, code = '') {
         useApp.setState({ settings: msg.settings });
         break;
       case 'state':
+        diag('сеть', `состояние: раунд ${msg.game.round + 1}, фаза ${msg.game.phase}`);
         useClient.setState({ status: 'playing' });
         app.applyRemoteState(msg.game, msg.reveal);
         break;
       case 'closed':
+        diag('сеть', 'комната закрыта: ' + msg.reason);
         useClient.setState({ status: 'closed', error: msg.reason });
         socket.close();
         break;

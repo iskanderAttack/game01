@@ -31,7 +31,7 @@ export function NetScreen() {
   }, [tab, client.status]);
 
   return (
-    <Screen>
+    <Screen name="net">
       <TopBar
         title="Игра по Wi-Fi"
         subtitle="Все устройства должны быть в одной сети"

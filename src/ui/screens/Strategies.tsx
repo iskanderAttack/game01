@@ -7,7 +7,7 @@ export function StrategiesScreen() {
   const go = useApp((s) => s.go);
 
   return (
-    <Screen>
+    <Screen name="strategies">
       <TopBar title="Стратегии" subtitle="Характеры, которые можно позвать в партию" onBack={() => go('home')} />
       <div className="scroll">
         <p className="muted">

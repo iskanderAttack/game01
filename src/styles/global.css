@@ -494,3 +494,27 @@ input[type='range']::-webkit-slider-thumb {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ───────────────── безопасный режим отрисовки ─────────────────
+   Включается, когда WebView перестал выдавать кадры (энергосбережение,
+   сворачивание, разделённый экран) и анимации замерли на полпути.
+   Задача — принудительно довести всё до конечного состояния,
+   чтобы экран не остался прозрачным и игра оставалась управляемой. */
+.safe-motion [style*='opacity'] {
+  opacity: 1 !important;
+}
+
+.safe-motion [style*='transform']:not(.reveal-card) {
+  transform: none !important;
+}
+
+/* Карты вскрытия показываем сразу лицом — без анимации переворота. */
+.safe-motion .reveal-card {
+  transform: rotateY(180deg) !important;
+}
+
+.safe-motion .shimmer,
+.safe-motion .pulse,
+.safe-motion .waiting-orb {
+  animation: none !important;
+}
