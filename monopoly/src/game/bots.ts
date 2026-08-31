@@ -1,3 +1,10 @@
+import {
+  SECTORS,
+  STOCKS,
+  changeOf,
+  sectorShock,
+  type SectorId,
+} from './market';
 import { JAIL_FEE, groupTiles, isBuyable } from './board';
 import {
   buildCost,
@@ -275,4 +282,107 @@ function pickBuild(state: GameState, botId: string, keep: number): number | null
   });
 
   return candidates[0];
+}
+
+/* ─────────────────────────── рынок в «Империи» ───────────────────────────
+   Боты играют на понятной стратегии, а не наугад: при высокой ставке уходят
+   во вклады и облигации, при низкой — в акции сектора, которому сейчас
+   помогают новости. «Магнат» вдобавок заводит один стартап. */
+
+export function botFinance(state: GameState, botId: string): Action | null {
+  const market = state.market;
+  const bot = playerById(state, botId);
+  if (!market || !bot || bot.bankrupt) return null;
+  // Одно решение за ход — иначе бот зациклится на бирже.
+  if (bot.investedOnTurn === state.turn) return null;
+
+  const level = bot.botLevel ?? 'normal';
+  if (level === 'easy' && Math.random() < 0.45) return null;
+
+  const p = bot.portfolio;
+  const keep = reserve(level) + 150 * K;
+  const free = bot.money - keep;
+  const inDebt = state.stage === 'debt' && state.players[state.turnIndex]?.id === botId;
+
+  /* Нечем платить — распродаём нажитое, начиная с самого ликвидного. */
+  if (bot.money < 150 * K || inDebt) {
+    if (p.demand > 0) {
+      return { t: 'fin', op: { op: 'withdraw', kind: 'demand', amount: p.demand } };
+    }
+    const position = Object.entries(p.positions)[0];
+    if (position) {
+      return { t: 'fin', op: { op: 'sell', id: position[0], qty: position[1].qty } };
+    }
+    if (p.bonds.length > 0) {
+      return { t: 'fin', op: { op: 'sellBond', bondId: p.bonds[0].id } };
+    }
+    if (p.term > 0) {
+      return { t: 'fin', op: { op: 'withdraw', kind: 'term', amount: p.term } };
+    }
+    return null;
+  }
+
+  if (free < 150 * K) return null;
+
+  const highRate = market.keyRate >= 12;
+
+  /* Высокая ставка — деньги должны лежать в банке, а не в акциях. */
+  if (highRate) {
+    // Сначала выйти из подешевевших акций.
+    const loser = Object.entries(p.positions).find(([id]) => changeOf(market, id) < -0.08);
+    if (loser && Math.random() < 0.5) {
+      return { t: 'fin', op: { op: 'sell', id: loser[0], qty: loser[1].qty } };
+    }
+    if (Math.random() < 0.45 && free > 400 * K) {
+      return { t: 'fin', op: { op: 'buyBond', kind: level === 'hard' ? 'corp' : 'ofz', qty: 2 } };
+    }
+    return { t: 'fin', op: { op: 'deposit', kind: 'term', amount: Math.floor(free * 0.6) } };
+  }
+
+  /* Низкая ставка — вклад бессмыслен, деньги идут в дело. */
+  if (p.term > 0 && market.keyRate <= 7) {
+    return { t: 'fin', op: { op: 'withdraw', kind: 'term', amount: p.term } };
+  }
+
+  if (level === 'hard' && p.startups.filter((s) => s.state === 'alive').length === 0 && free > 700 * K) {
+    const sector = hottestSector(state);
+    return { t: 'fin', op: { op: 'found', sector, amount: Math.floor(free * 0.3) } };
+  }
+
+  const pick = bestTicker(state);
+  if (!pick) return null;
+  const price = market.prices[pick];
+  const qty = Math.floor((free * 0.45) / Math.max(1, price));
+  if (qty < 1) return null;
+  return { t: 'fin', op: { op: 'buy', id: pick, qty } };
+}
+
+/** Сектор, которому сейчас больше всего помогают новости. */
+function hottestSector(state: GameState): SectorId {
+  const market = state.market!;
+  let best: SectorId = 'tech';
+  let top = -Infinity;
+  for (const s of SECTORS) {
+    const score = sectorShock(market, s.id) + s.drift;
+    if (score > top) {
+      top = score;
+      best = s.id;
+    }
+  }
+  return best;
+}
+
+/** Бумага с лучшим сочетанием импульса и попутного ветра новостей. */
+function bestTicker(state: GameState): string | null {
+  const market = state.market!;
+  let best: string | null = null;
+  let top = -Infinity;
+  for (const stock of STOCKS) {
+    const score = sectorShock(market, stock.sector) * 2 + changeOf(market, stock.id);
+    if (score > top) {
+      top = score;
+      best = stock.id;
+    }
+  }
+  return best;
 }

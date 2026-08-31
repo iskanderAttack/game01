@@ -15,6 +15,9 @@ import {
 } from './board';
 import { CHANCE, CHEST, getCard, type Card } from './cards';
 import { money } from './money';
+import { advanceMonth, createMarket, emptyPortfolio, portfolioValue, type MarketState, type Portfolio } from './market';
+import { applyFinance, settleMonth, type FinOp } from './finance';
+import { getEvent } from './events';
 import { getItem as getWardrobeItem, type Slot } from './wardrobe';
 import { getMode } from './modes';
 import type {
@@ -47,6 +50,8 @@ export type Action =
   | { t: 'jailRoll' }
   | { t: 'loan'; amount: number }
   | { t: 'repay'; amount: number }
+  /** Операция с деньгами на рынке. Разрешена вне очереди хода. */
+  | { t: 'fin'; op: FinOp }
   /** Купить и надеть вещь из бутика. Вне очереди хода, на правила не влияет. */
   | { t: 'wear'; slot: Slot; itemId: string | null }
   | { t: 'trade'; offer: Omit<TradeOffer, 'id'> }
@@ -84,7 +89,9 @@ function clone(state: GameState): GameState {
       stats: { ...p.stats },
       outfit: { ...p.outfit },
       wardrobe: [...p.wardrobe],
+      portfolio: clonePortfolio(p.portfolio),
     })),
+    market: state.market ? cloneMarket(state.market) : null,
     properties: Object.fromEntries(
       Object.entries(state.properties).map(([k, v]) => [k, { ...v }]),
     ) as Record<number, PropertyState>,
@@ -94,6 +101,32 @@ function clone(state: GameState): GameState {
     log: [...state.log],
     winnerIds: [...state.winnerIds],
     auction: state.auction ? { ...state.auction, activeIds: [...state.auction.activeIds] } : null,
+  };
+}
+
+/** Портфель копируется поштучно: иначе правки протекли бы в прошлое состояние. */
+function clonePortfolio(p: Portfolio): Portfolio {
+  return {
+    positions: Object.fromEntries(Object.entries(p.positions).map(([k, v]) => [k, { ...v }])),
+    bonds: p.bonds.map((b) => ({ ...b })),
+    term: p.term,
+    demand: p.demand,
+    realty: { ...p.realty },
+    startups: p.startups.map((s) => ({ ...s })),
+    termAccrued: p.termAccrued,
+  };
+}
+
+function cloneMarket(m: MarketState): MarketState {
+  return {
+    ...m,
+    prices: { ...m.prices },
+    history: Object.fromEntries(Object.entries(m.history).map(([k, v]) => [k, [...v]])),
+    realty: { ...m.realty },
+    events: m.events.map((e) => ({ ...e })),
+    news: [...m.news],
+    deck: [...m.deck],
+    ipo: m.ipo.map((i) => ({ ...i })),
   };
 }
 
@@ -190,6 +223,11 @@ export function netWorth(state: GameState, playerId: string): number {
       if (prop.houses >= 6) total += cost * SKYSCRAPER_COST_FACTOR;
     }
   }
+
+  // В «Империи» половина состояния может лежать на бирже — считаем и её.
+  const player = playerById(state, playerId);
+  if (state.market && player) total += portfolioValue(state.market, player.portfolio);
+
   return total;
 }
 
@@ -208,6 +246,7 @@ export function makePlayer(init: Partial<Player> & { id: string; name: string })
     character: 'fox',
     outfit: {},
     wardrobe: [],
+    portfolio: emptyPortfolio(),
     isBot: false,
     money: 0,
     pos: 0,
@@ -217,6 +256,7 @@ export function makePlayer(init: Partial<Player> & { id: string; name: string })
     bankrupt: false,
     loan: 0,
     tradedOnTurn: -1,
+    investedOnTurn: -1,
     stats: { rolls: 0, doubles: 0, rentPaid: 0, rentEarned: 0, bought: 0, jailVisits: 0, passedGo: 0 },
     ...init,
   };
@@ -241,6 +281,8 @@ export function createGame(settings: GameSettings, roster: Player[]): GameState 
       bankrupt: false,
       loan: 0,
       tradedOnTurn: -1,
+      investedOnTurn: -1,
+      portfolio: emptyPortfolio(),
       stats: { rolls: 0, doubles: 0, rentPaid: 0, rentEarned: 0, bought: 0, jailVisits: 0, passedGo: 0 },
     })),
     properties,
@@ -261,6 +303,8 @@ export function createGame(settings: GameSettings, roster: Player[]): GameState 
     chestPos: 0,
     log: [],
     lastMove: null,
+    market: settings.market ? createMarket() : null,
+    headline: null,
     winnerIds: [],
     seed: Math.floor(Math.random() * 2 ** 31),
   };
@@ -545,7 +589,11 @@ function nextTurn(state: GameState) {
   for (let step = 1; step <= total; step++) {
     const idx = (state.turnIndex + step) % total;
     if (state.players[idx].bankrupt) continue;
-    if (idx <= state.turnIndex) state.round += 1;
+    if (idx <= state.turnIndex) {
+      state.round += 1;
+      // Круг доски — игровой месяц: мир живёт вместе с партией.
+      turnMonth(state);
+    }
     state.turnIndex = idx;
     state.turn += 1;
     break;
@@ -558,15 +606,57 @@ function nextTurn(state: GameState) {
   checkEnd(state);
 }
 
+/**
+ * Новый месяц в «Империи»: новость, ставка, цены — и начисления всем игрокам.
+ * Порядок важен: сначала мир меняется, потом по новым ценам считаются доходы.
+ */
+function turnMonth(state: GameState) {
+  if (!state.market || !state.settings.market) return;
+
+  const report = advanceMonth(state.market);
+  const event = getEvent(report.eventId);
+  state.headline = report.eventId;
+  say(state, `${event.title}. Ставка ЦБ — ${report.keyRate.toFixed(2).replace(/\.?0+$/, '')} %`, event.emoji);
+
+  for (const player of state.players) {
+    if (player.bankrupt) continue;
+    const wallet = { money: player.money, name: player.name };
+    const earned = settleMonth(state.market, player.portfolio, wallet);
+    player.money = wallet.money;
+
+    const total = earned.interest + earned.coupons + earned.dividends + earned.rent;
+    if (total > 0) {
+      say(state, `${player.name} получает с капитала ${money(total)}`, '💰');
+    }
+    for (const note of earned.notes) {
+      say(state, `${player.name}: ${note}`, '📰');
+    }
+  }
+}
+
+/**
+ * Даже партия «до последнего» обязана когда-нибудь закончиться.
+ *
+ * Если никто не строит, все просто ходят по кругу и получают за «Старт»:
+ * разориться не на чем, и партия не кончается никогда (в прогоне такая
+ * тянулась 6588 кругов). После восьмидесяти кругов считаем капитал.
+ */
+const STALEMATE_ROUNDS = 80;
+
 function checkEnd(state: GameState) {
   const alive = activePlayers(state);
   const limit = state.settings.roundLimit;
+  const hardLimit = limit > 0 ? limit : STALEMATE_ROUNDS;
 
-  if (limit > 0 && state.round > limit) {
+  if (state.round > hardLimit) {
     state.stage = 'over';
     const best = Math.max(...state.players.map((p) => netWorth(state, p.id)));
     state.winnerIds = state.players.filter((p) => netWorth(state, p.id) === best).map((p) => p.id);
-    say(state, 'Круги закончились — считаем капитал', '🏆');
+    say(
+      state,
+      limit > 0 ? 'Круги закончились — считаем капитал' : 'Партия затянулась — считаем капитал',
+      '🏆',
+    );
     return;
   }
 
@@ -579,6 +669,11 @@ function checkEnd(state: GameState) {
 
 /** Раздаёт имущество банкрота и выбывает игрока. */
 function goBankrupt(state: GameState, player: Player, creditorId: string | null) {
+  // Рыночные активы сгорают вместе с остальным: кредитору достаются деньги.
+  if (state.market) {
+    player.money += portfolioValue(state.market, player.portfolio);
+    player.portfolio = emptyPortfolio();
+  }
   const tiles = ownedTiles(state, player.id);
 
   if (creditorId) {
@@ -708,30 +803,31 @@ export function applyAction(prev: GameState, playerId: string, action: Action): 
 
   const isCurrent = currentPlayer(state)?.id === playerId;
 
-  /* Торги идут вне очереди хода. */
-  if (state.stage === 'auction' && state.auction) {
-    const a = state.auction;
-    if (action.t === 'bid') {
-      if (a.turnId !== playerId) return { state: prev, error: 'Сейчас не ваша ставка' };
-      if (action.amount <= a.bid) return { state: prev, error: 'Ставка должна быть выше' };
-      if (action.amount > player.money) return { state: prev, error: 'Не хватает денег' };
-      a.bid = action.amount;
-      a.leaderId = playerId;
-      say(state, `${player.name} ставит ${money(action.amount)}`, '🔨');
-      auctionNext(state);
-      return { state };
+  /* Деньгами можно заниматься когда угодно, а не только в свой ход:
+     цены меняются раз в месяц, поэтому одновременные сделки честны. */
+  if (action.t === 'fin') {
+    if (!state.market || !state.settings.market) return { state: prev, error: 'Рынка нет в этом режиме' };
+    // В долгах покупать нельзя, а вот распродавать активы — именно то,
+    // что и нужно: это законный способ расплатиться.
+    const raisesCash =
+      action.op.op === 'sell' ||
+      action.op.op === 'withdraw' ||
+      action.op.op === 'sellBond' ||
+      action.op.op === 'sellRealty' ||
+      action.op.op === 'exit';
+    if (state.stage === 'debt' && !raisesCash && playerId === currentPlayer(state)?.id) {
+      return { state: prev, error: 'Сначала разберитесь с долгом' };
     }
-    if (action.t === 'pass') {
-      if (a.turnId !== playerId) return { state: prev, error: 'Сейчас не ваш ход в торгах' };
-      a.activeIds = a.activeIds.filter((id) => id !== playerId);
-      say(state, `${player.name} выходит из торгов`, '🙅');
-      if (a.activeIds.length > 0 && !a.activeIds.includes(a.turnId)) {
-        a.turnId = a.activeIds[0];
-      }
-      auctionNext(state);
-      return { state };
-    }
-    return { state: prev, error: 'Сейчас идут торги' };
+
+    const wallet = { money: player.money, name: player.name };
+    const result = applyFinance(state.market, player.portfolio, wallet, action.op);
+    if (result.error) return { state: prev, error: result.error };
+    player.money = wallet.money;
+    player.investedOnTurn = state.turn;
+    if (result.log) say(state, result.log.text, result.log.emoji);
+    // Продажа могла закрыть долг — проверяем сразу.
+    if (state.stage === 'debt') settleDebtIfPossible(state, player);
+    return { state };
   }
 
   /* Бутик открыт в любой момент: наряд ни на что в правилах не влияет. */
@@ -756,6 +852,32 @@ export function applyAction(prev: GameState, playerId: string, action: Action): 
     }
     player.outfit = { ...player.outfit, [action.slot]: item.id };
     return { state };
+  }
+
+  /* Торги идут вне очереди хода. */
+  if (state.stage === 'auction' && state.auction) {
+    const a = state.auction;
+    if (action.t === 'bid') {
+      if (a.turnId !== playerId) return { state: prev, error: 'Сейчас не ваша ставка' };
+      if (action.amount <= a.bid) return { state: prev, error: 'Ставка должна быть выше' };
+      if (action.amount > player.money) return { state: prev, error: 'Не хватает денег' };
+      a.bid = action.amount;
+      a.leaderId = playerId;
+      say(state, `${player.name} ставит ${money(action.amount)}`, '🔨');
+      auctionNext(state);
+      return { state };
+    }
+    if (action.t === 'pass') {
+      if (a.turnId !== playerId) return { state: prev, error: 'Сейчас не ваш ход в торгах' };
+      a.activeIds = a.activeIds.filter((id) => id !== playerId);
+      say(state, `${player.name} выходит из торгов`, '🙅');
+      if (a.activeIds.length > 0 && !a.activeIds.includes(a.turnId)) {
+        a.turnId = a.activeIds[0];
+      }
+      auctionNext(state);
+      return { state };
+    }
+    return { state: prev, error: 'Сейчас идут торги' };
   }
 
   /* Сделки можно предлагать и принимать в любой момент. */

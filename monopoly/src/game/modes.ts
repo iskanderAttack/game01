@@ -2,7 +2,7 @@ import type { GameSettings } from './types';
 
 const K = 1000;
 
-export type ModeId = 'classic' | 'blitz' | 'family' | 'tycoon' | 'sprint';
+export type ModeId = 'classic' | 'blitz' | 'family' | 'tycoon' | 'sprint' | 'empire';
 
 export interface GameMode {
   id: ModeId;
@@ -39,6 +39,7 @@ export const GAME_MODES: GameMode[] = [
       parkingPot: false,
       mortgages: true,
       tycoon: false,
+      market: false,
       roundLimit: 0,
       evenBuild: true,
       houseSupply: 32,
@@ -65,6 +66,7 @@ export const GAME_MODES: GameMode[] = [
       parkingPot: false,
       mortgages: true,
       tycoon: false,
+      market: false,
       roundLimit: 15,
       evenBuild: false,
       houseSupply: 0,
@@ -91,6 +93,7 @@ export const GAME_MODES: GameMode[] = [
       parkingPot: true,
       mortgages: false,
       tycoon: false,
+      market: false,
       roundLimit: 12,
       evenBuild: false,
       houseSupply: 0,
@@ -117,6 +120,7 @@ export const GAME_MODES: GameMode[] = [
       parkingPot: false,
       mortgages: true,
       tycoon: true,
+      market: false,
       roundLimit: 0,
       evenBuild: true,
       houseSupply: 0,
@@ -143,8 +147,36 @@ export const GAME_MODES: GameMode[] = [
       parkingPot: true,
       mortgages: true,
       tycoon: false,
+      market: false,
       roundLimit: 8,
       evenBuild: false,
+      houseSupply: 0,
+      hotelSupply: 0,
+    },
+  },
+  {
+    id: 'empire',
+    name: 'Империя',
+    emoji: '💹',
+    tagline: 'Доска, рынок и ваши деньги.',
+    description:
+      'Круг доски — игровой месяц. Раз в месяц выходит мировая новость и двигает ключевую ставку: при высокой выгодно сидеть во вкладах и облигациях, при низкой — выводить деньги в акции, стартапы и стройку. Кроме улиц есть восемь биржевых секторов, ОФЗ и корпоративные облигации, крипта от крупных монет до мусорных токенов, жильё в шести странах и собственные стартапы вплоть до IPO. Работать с деньгами можно в любой момент, не дожидаясь своего хода. Два игровых года — двадцать четыре круга.',
+    minPlayers: 2,
+    maxPlayers: 6,
+    suggestedBots: 1,
+    accent: '#4ADE80',
+    bullets: ['Ставка ЦБ и мировые события', 'Акции, облигации, крипта, зарубежка', 'Свои стартапы до IPO'],
+    defaults: {
+      startMoney: 1500 * K,
+      goSalary: 200 * K,
+      goBonus: false,
+      auctions: true,
+      parkingPot: false,
+      mortgages: true,
+      tycoon: true,
+      market: true,
+      roundLimit: 24,
+      evenBuild: true,
       houseSupply: 0,
       hotelSupply: 0,
     },

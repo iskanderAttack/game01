@@ -25,6 +25,9 @@ import { DeedCard, groupProgress } from '../components/PropertyBits';
 import { TradeSheet } from '../components/TradeSheet';
 import { OwnershipMatrix } from '../components/OwnershipMatrix';
 import { BoutiqueSheet } from '../components/BoutiqueSheet';
+import { MarketSheet } from '../components/MarketSheet';
+import { MONTHS, seasonOf } from '../../game/market';
+import { getEvent } from '../../game/events';
 import { haptic, play, tap } from '../../lib/feedback';
 
 export function GameScreen() {
@@ -46,6 +49,8 @@ export function GameScreen() {
   const [tradeOpen, setTradeOpen] = useState(false);
   const [ownersOpen, setOwnersOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  const [marketOpen, setMarketOpen] = useState(false);
+  const [seenMonth, setSeenMonth] = useState<number | null>(null);
   const [tradePreset, setTradePreset] = useState<{ partnerId: string; takeTiles: number[] } | null>(
     null,
   );
@@ -136,9 +141,18 @@ export function GameScreen() {
             {canAct ? 'Ваш ход' : `Ходит ${actor?.name ?? '…'}`}
           </div>
           <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-            {mode.emoji} круг {game.round}
-            {game.settings.roundLimit > 0 ? ` из ${game.settings.roundLimit}` : ''} ·{' '}
-            {money(actor?.money ?? 0)}
+            {game.market ? (
+              <>
+                {seasonOf(game.market.month).emoji} {MONTHS[game.market.month - 1]}, год{' '}
+                {game.market.year} · 🏛️ {rateText(game.market.keyRate)} %
+              </>
+            ) : (
+              <>
+                {mode.emoji} круг {game.round}
+                {game.settings.roundLimit > 0 ? ` из ${game.settings.roundLimit}` : ''}
+              </>
+            )}{' '}
+            · {money(actor?.money ?? 0)}
             {game.settings.parkingPot && game.pot > 0 ? ` · 🅿️ ${money(game.pot)}` : ''}
           </div>
         </div>
@@ -149,6 +163,29 @@ export function GameScreen() {
 
       <div className="play-body">
         <PlayerStrip state={game} meId={me?.id} onPick={() => setLogOpen(true)} />
+
+        {/* Новость месяца — её видят все и одновременно. */}
+        {game.market && game.headline && seenMonth !== game.market.month && (
+          <button
+            className="news-card fresh"
+            style={{ width: '100%', textAlign: 'left' }}
+            onClick={() => {
+              tap();
+              setSeenMonth(game.market!.month);
+              setMarketOpen(true);
+            }}
+          >
+            <span className="news-emoji">{getEvent(game.headline).emoji}</span>
+            <div style={{ minWidth: 0 }}>
+              <div className="news-title">{getEvent(game.headline).title}</div>
+              <div className="news-text">{getEvent(game.headline).text}</div>
+              <div className="news-meta">
+                <span>🏛️ ставка ЦБ — {rateText(game.market.keyRate)} %</span>
+                <span className="muted">нажмите, чтобы открыть рынок</span>
+              </div>
+            </div>
+          </button>
+        )}
 
         <Board state={game} highlight={highlight} onTile={(i) => { tap(); setDeedTile(i); }} />
 
@@ -326,6 +363,11 @@ export function GameScreen() {
           <button className="chip" onClick={() => { tap(); setOwnersOpen(true); }}>
             🗂️ Кто чем владеет
           </button>
+          {game.market && (
+            <button className="chip accent" onClick={() => { tap(); setMarketOpen(true); }}>
+              💹 Рынок
+            </button>
+          )}
           <button className="chip" onClick={() => { tap(); setShopOpen(true); }}>
             🛍️ Бутик
           </button>
@@ -418,6 +460,8 @@ export function GameScreen() {
         onClose={() => setAssetsOpen(false)}
         onAction={(a) => send(a)}
       />
+
+      <MarketSheet open={marketOpen} onClose={() => setMarketOpen(false)} />
 
       <BoutiqueSheet open={shopOpen} onClose={() => setShopOpen(false)} />
 
@@ -643,3 +687,8 @@ const AssetRow = memo(function AssetRow({
     </div>
   );
 });
+
+/** «9», «12,5» — ставка без лишних нулей. */
+function rateText(v: number): string {
+  return v.toFixed(2).replace(/\.?0+$/, '').replace('.', ',');
+}

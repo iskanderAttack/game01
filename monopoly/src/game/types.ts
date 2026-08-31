@@ -1,3 +1,4 @@
+import type { MarketState, Portfolio } from './market';
 import type { Outfit } from './wardrobe';
 
 export type TileKind =
@@ -66,6 +67,8 @@ export interface Player {
   outfit: Outfit;
   /** Купленные в этой партии вещи. */
   wardrobe: string[];
+  /** Всё, что игрок держит на рынке. Работает только в режиме «Империя». */
+  portfolio: Portfolio;
   isBot: boolean;
   botLevel?: 'easy' | 'normal' | 'hard';
   remote?: boolean;
@@ -82,6 +85,8 @@ export interface Player {
   loan: number;
   /** Ход, на котором игрок уже предлагал обмен, — чтобы боты не зацикливались. */
   tradedOnTurn: number;
+  /** Ход, на котором игрок уже работал с рынком, — та же защита для ботов. */
+  investedOnTurn: number;
   stats: PlayerStats;
 }
 
@@ -173,6 +178,8 @@ export interface GameSettings {
   mortgages: boolean;
   /** Небоскрёбы и банковские кредиты. */
   tycoon: boolean;
+  /** Финансовый мир: рынок, ставка ЦБ, месяцы и мировые события. */
+  market: boolean;
   /** Партия заканчивается после N кругов, побеждает богатейший. 0 — до последнего. */
   roundLimit: number;
   /** Строить можно только равномерно (классическое правило). */
@@ -214,6 +221,10 @@ export interface GameState {
   log: LogEntry[];
   /** Последнее перемещение фишки — для анимации на доске. */
   lastMove: LastMove | null;
+  /** Финансовый мир режима «Империя». В остальных режимах — null. */
+  market: MarketState | null;
+  /** Новость свежего месяца — показывается всем крупной карточкой. */
+  headline: string | null;
   winnerIds: string[];
   seed: number;
 }

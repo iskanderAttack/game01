@@ -27,7 +27,7 @@ import { tap } from '../../lib/feedback';
  */
 
 /** Сколько логических пикселей держим в кадре в режиме слежения. */
-const FOLLOW_SPAN = 440;
+const FOLLOW_SPAN = 380;
 /** Обзор кладём доску положе: так она не сжимается в узкую полоску. */
 const OVERVIEW_TILT = 28;
 
@@ -78,16 +78,13 @@ export function Board({
       // центр доски оказывается ниже центра кадра — компенсируем сдвигом.
       return { x: BOARD_PX / 2, y: overview.y, zoom: overview.zoom };
     }
+    /* Камера смотрит прямо на активную клетку, лишь слегка подтянувшись
+       к центру доски. Прижимать её к краям доски бессмысленно: доска —
+       кольцо, и «заполнить кадр» означало бы залить его зелёным сукном. */
     const c = tileCenter(focusTile);
-    // Чуть подтягиваем к центру доски, а затем прижимаем камеру к её краям:
-    // иначе у клеток нижнего ряда полкадра занимает пустота за доской.
     return {
-      x: keepOnBoard(c.x * 0.78 + (BOARD_PX / 2) * 0.22, size.w, followZoom),
-      y: keepOnBoard(
-        c.y * 0.78 + (BOARD_PX / 2) * 0.22,
-        size.h / Math.cos((TILT_DEG * Math.PI) / 180),
-        followZoom,
-      ),
+      x: c.x * 0.86 + (BOARD_PX / 2) * 0.14,
+      y: c.y * 0.86 + (BOARD_PX / 2) * 0.14,
       zoom: followZoom,
     };
   }, [mode, free, focusTile, overview, followZoom, safe, size.w, size.h]);
@@ -144,7 +141,7 @@ export function Board({
           />
         ))}
 
-        <BoardCenter state={state} faded={mode === 'follow'} />
+        {mode !== 'follow' && <BoardCenter state={state} />}
 
         {state.players
           .filter((p) => !p.bankrupt)
@@ -159,6 +156,13 @@ export function Board({
             />
           ))}
       </div>
+
+      {mode === 'follow' && (
+        <div className="board-hud">
+          {state.dice && <Dice values={state.dice} />}
+          <div className="board-hud-note">{state.log[0]?.text ?? 'Бросайте кубики'}</div>
+        </div>
+      )}
 
       <div className="board-tools">
         <button
@@ -294,12 +298,11 @@ function Pawn({
 
 /* ───────────────────────────── центр ───────────────────────────── */
 
-function BoardCenter({ state, faded }: { state: GameState; faded: boolean }) {
+function BoardCenter({ state }: { state: GameState }) {
   const actor = state.players[state.turnIndex];
 
-  // Вблизи середина доски всё равно за кадром — не мозолит глаза обрезками.
   return (
-    <div className={`board-center ${faded ? 'faded' : ''}`}>
+    <div className="board-center">
       <div className="board-logo">Монополия</div>
       {state.dice && <Dice values={state.dice} />}
       {actor && (
@@ -578,16 +581,6 @@ function useElementSize(ref: React.RefObject<HTMLElement | null>) {
   }, [ref]);
 
   return size;
-}
-
-/**
- * Держит точку фокуса так, чтобы доска закрывала весь кадр.
- * Если видимая полоса шире доски — смотрим строго в середину.
- */
-function keepOnBoard(value: number, viewSpan: number, zoom: number): number {
-  const half = viewSpan / (2 * zoom);
-  if (half * 2 >= BOARD_PX) return BOARD_PX / 2;
-  return clamp(value, half, BOARD_PX - half);
 }
 
 function clamp(v: number, lo: number, hi: number): number {

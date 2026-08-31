@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { botAction, botTradeReply } from '../game/bots';
+import { botAction, botFinance, botTradeReply } from '../game/bots';
 import { applyAction, createGame, makePlayer, type Action } from '../game/engine';
 import { characterFor } from '../game/characters';
 import type { Outfit } from '../game/wardrobe';
@@ -32,6 +32,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   parkingPot: false,
   mortgages: true,
   tycoon: false,
+  market: false,
   roundLimit: 0,
   evenBuild: true,
   houseSupply: 32,
@@ -294,6 +295,13 @@ function scheduleBot(get: Get, set: Set) {
     const reply = botTradeReply(state, id);
     if (reply) {
       get().applyLocal(id, reply);
+      return;
+    }
+
+    // Дела с деньгами бот решает первыми — одно решение за ход.
+    const finance = botFinance(state, id);
+    if (finance) {
+      get().applyLocal(id, finance);
       return;
     }
 
