@@ -1,3 +1,5 @@
+import type { Outfit } from './wardrobe';
+
 export type TileKind =
   | 'go'
   | 'street'
@@ -58,6 +60,10 @@ export interface Player {
   name: string;
   emoji: string;
   color: string;
+  /** Зверушка, которой игрок ходит по доске. */
+  character: string;
+  /** Что на ней надето. На правила не влияет — только внешний вид. */
+  outfit: Outfit;
   isBot: boolean;
   botLevel?: 'easy' | 'normal' | 'hard';
   remote?: boolean;
@@ -127,6 +133,22 @@ export interface TradeOffer {
   takeJailCards: number;
 }
 
+/**
+ * Как фишка попала на свою клетку.
+ *
+ * Нужно интерфейсу: «walk» проходит по клеткам одну за другой, «jump»
+ * (тюрьма, карточки переноса) переносит по дуге. Лежит в состоянии, а не в
+ * интерфейсе, чтобы по сети все видели одно и то же движение.
+ */
+export interface LastMove {
+  playerId: string;
+  from: number;
+  to: number;
+  kind: 'walk' | 'jump';
+  /** Счётчик — чтобы повтор того же хода не считался «ничего не изменилось». */
+  n: number;
+}
+
 export interface LogEntry {
   turn: number;
   text: string;
@@ -188,6 +210,8 @@ export interface GameState {
   chancePos: number;
   chestPos: number;
   log: LogEntry[];
+  /** Последнее перемещение фишки — для анимации на доске. */
+  lastMove: LastMove | null;
   winnerIds: string[];
   seed: number;
 }

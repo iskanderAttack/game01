@@ -153,6 +153,8 @@ function handleClientMessage(clientId: string, raw: string) {
       name: msg.name?.slice(0, 14) || `Гость ${app.draft.length + 1}`,
       emoji: msg.emoji || av.emoji,
       color: msg.color || av.color,
+      character: msg.character || av.character,
+      outfit: msg.outfit ?? {},
       isBot: false,
       remote: true,
       connected: true,

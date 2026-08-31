@@ -1,0 +1,513 @@
+/* ─────────────────────────── объёмная доска ───────────────────────────
+   Доска всегда одного размера — 1100×1100 логических пикселей, — а телефон
+   смотрит на неё камерой. Отсюда и читаемость: подписи набраны нормальным
+   кеглем, а не шестью пикселями. */
+
+.board-viewport {
+  position: relative;
+  width: 100%;
+  /* Доске отводится своя доля экрана: остальное — карточки хода и панель. */
+  flex: none;
+  height: clamp(280px, 54dvh, 560px);
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(212, 175, 105, 0.09), transparent 70%),
+    linear-gradient(180deg, #0c1526, #070d19);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  contain: paint;
+  /* Перспектива живёт на родителе: иначе поворот доски вокруг X не
+     укорачивает дальний край и наклон читается как плоская картинка. */
+  perspective: 1500px;
+  perspective-origin: 50% 50%;
+}
+
+.board-stage {
+  position: absolute;
+  transition: none;
+  /* Начало координат доски совпадает с центром кадра — дальше камера
+     только доворачивает и подтягивает нужную клетку. */
+  left: 50%;
+  top: 50%;
+  transform-origin: 0 0;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* Толщина доски: плита чуть больше самой доски и опущена под неё. */
+.board-slab {
+  position: absolute;
+  left: -16px;
+  top: -16px;
+  width: calc(100% + 32px);
+  height: calc(100% + 32px);
+  border-radius: 18px;
+  background: linear-gradient(160deg, #6b4f22, #37280f);
+  transform: translateZ(-26px);
+  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.65);
+}
+
+.board-felt {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: linear-gradient(155deg, #163d23, #0c2416 60%, #0a1e12);
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(212, 175, 105, 0.3);
+}
+
+/* ───────────────────────────── клетка ───────────────────────────── */
+
+.t3 {
+  position: absolute;
+  display: flex;
+  overflow: hidden;
+  background: #f5edda;
+  color: #1a1d26;
+  border: 1px solid rgba(0, 0, 0, 0.24);
+  border-radius: 3px;
+  transition: filter 0.2s ease;
+}
+
+.t3-bottom {
+  flex-direction: column;
+}
+
+.t3-top {
+  flex-direction: column-reverse;
+}
+
+.t3-left {
+  flex-direction: row-reverse;
+}
+
+.t3-right {
+  flex-direction: row;
+}
+
+.t3-corner {
+  flex-direction: column;
+  background: #ece0c6;
+}
+
+/* Цветная полоса всегда со стороны центра доски. */
+.t3-band {
+  flex: none;
+  box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.28);
+}
+
+.t3-bottom .t3-band,
+.t3-top .t3-band {
+  height: 24%;
+  width: 100%;
+}
+
+.t3-left .t3-band,
+.t3-right .t3-band {
+  width: 24%;
+  height: 100%;
+}
+
+.t3-face {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 3px;
+  text-align: center;
+  position: relative;
+  z-index: 2;
+}
+
+.t3-name {
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+.t3-corner .t3-name {
+  font-size: 15px;
+}
+
+.t3-price {
+  font-size: 11px;
+  font-weight: 800;
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.t3-emoji {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.t3-corner .t3-emoji {
+  font-size: 34px;
+}
+
+/* Владение: лицо клетки красится в цвет хозяина. */
+.t3-own {
+  position: absolute;
+  inset: 0;
+  opacity: 0.2;
+  z-index: 1;
+}
+
+.t3.owned {
+  border-color: rgba(0, 0, 0, 0.35);
+}
+
+.t3.mortgaged {
+  filter: grayscale(0.8) brightness(0.78);
+}
+
+.t3.highlight {
+  box-shadow: 0 0 0 3px var(--accent-2), 0 0 24px rgba(240, 198, 116, 0.6);
+  z-index: 5;
+}
+
+/* ───────────────────────────── постройки ───────────────────────────── */
+
+.t3-builds {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+  justify-content: center;
+  transform: translateZ(9px);
+}
+
+.t3-bottom .t3-builds {
+  top: 3px;
+  left: 0;
+  right: 0;
+}
+
+.t3-top .t3-builds {
+  bottom: 3px;
+  left: 0;
+  right: 0;
+}
+
+.t3-left .t3-builds {
+  right: 3px;
+  top: 0;
+  bottom: 0;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.t3-right .t3-builds {
+  left: 3px;
+  top: 0;
+  bottom: 0;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.t3-builds i {
+  width: 10px;
+  height: 11px;
+  border-radius: 2px 2px 1px 1px;
+  background: linear-gradient(160deg, #58d17a, #1f7a3c);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.45);
+}
+
+.t3-builds i.hotel {
+  width: 24px;
+  height: 13px;
+  background: linear-gradient(160deg, #f0705f, #b32a1e);
+}
+
+.t3-builds i.tower {
+  width: 14px;
+  height: 26px;
+  border-radius: 2px;
+  background: linear-gradient(160deg, #c4a6ff, #6b3fd4);
+}
+
+/* ───────────────────────────── флажок владельца ───────────────────────────── */
+
+.t3-flag {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  z-index: 4;
+  transform: translateZ(22px) rotateX(calc(-1 * var(--tilt, 42deg)));
+  transform-origin: 50% 100%;
+}
+
+.t3-flag span {
+  display: block;
+  width: 26px;
+  height: 26px;
+  line-height: 24px;
+  text-align: center;
+  font-size: 15px;
+  border-radius: 50% 50% 50% 4px;
+  background: var(--flag, #d4a24c);
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* ───────────────────────────── фишки ───────────────────────────── */
+
+.pawn {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: 20;
+  transform-style: preserve-3d;
+  transition: transform 92ms linear;
+}
+
+.pawn-mark {
+  position: absolute;
+  left: -15px;
+  top: -6px;
+  width: 30px;
+  height: 12px;
+  border-radius: 50%;
+  opacity: 0.5;
+  filter: blur(1px);
+}
+
+.pawn-stand {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -100%) rotateX(calc(-1 * var(--tilt, 42deg)));
+  transform-origin: 50% 100%;
+}
+
+.pawn.active .pawn-mark {
+  opacity: 0.95;
+  box-shadow: 0 0 16px 5px currentColor;
+  animation: pawn-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pawn-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.22);
+    opacity: 1;
+  }
+}
+
+/* ───────────────────────────── центр доски ───────────────────────────── */
+
+.board-stage .board-center {
+  position: absolute;
+  left: 150px;
+  top: 150px;
+  width: 800px;
+  height: 800px;
+  grid-area: auto;
+  gap: 16px;
+  padding: 40px;
+}
+
+.board-stage .board-logo {
+  font-size: 64px;
+  letter-spacing: 0.2em;
+  opacity: 0.5;
+}
+
+.board-stage .center-strong {
+  font-size: 30px;
+}
+
+.board-stage .center-note {
+  font-size: 22px;
+  max-width: 70%;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.board-stage .die {
+  width: 84px;
+  height: 84px;
+  border-radius: 16px;
+  padding: 10px;
+}
+
+.board-stage .die i {
+  width: 15px;
+  height: 15px;
+}
+
+/* ───────────────────────────── кнопки камеры ───────────────────────────── */
+
+.board-tools {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 30;
+}
+
+.board-tool {
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+  background: rgba(11, 18, 32, 0.82);
+  border: 1px solid var(--stroke-strong);
+  box-shadow: var(--shadow-1);
+}
+
+.board-tool.on {
+  background: rgba(212, 162, 76, 0.25);
+}
+
+/* В безопасном режиме камера и фишки замирают. */
+.safe-motion .pawn,
+.safe-motion .board-stage {
+  transition: none !important;
+}
+
+.board-stage .board-center.faded {
+  opacity: 0.25;
+  transition: opacity 0.3s ease;
+}
+
+.board-stage .board-center {
+  transition: opacity 0.3s ease;
+}
+
+/* ─────────────────────── кто чем владеет ─────────────────────── */
+
+.own-wrap {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.own-table {
+  border-collapse: separate;
+  border-spacing: 2px;
+  width: 100%;
+  font-size: 11.5px;
+}
+
+.own-table th {
+  font-weight: 700;
+  text-align: left;
+}
+
+.own-corner {
+  width: 1%;
+}
+
+.own-chip {
+  display: block;
+  width: 16px;
+  height: 8px;
+  border-radius: 3px;
+  margin: 0 auto;
+}
+
+.own-who {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  padding-right: 6px;
+}
+
+.own-critter {
+  display: block;
+  width: 22px;
+  flex: none;
+  line-height: 0;
+}
+
+.own-name {
+  max-width: 58px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.own-table tr.me .own-name {
+  color: var(--accent-2);
+}
+
+.own-cell {
+  text-align: center;
+  padding: 5px 1px;
+  border-radius: 7px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.05);
+  min-width: 26px;
+}
+
+.own-cell.empty {
+  color: var(--faint);
+  font-weight: 400;
+  background: transparent;
+}
+
+.own-cell.full {
+  background: var(--own);
+  color: #14181f;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.own-cell.nearly {
+  background: color-mix(in srgb, var(--own) 30%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--own);
+}
+
+.own-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.own-legend span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.own-key {
+  width: 16px;
+  height: 12px;
+  border-radius: 4px;
+  flex: none;
+}
+
+.own-key.full {
+  background: var(--accent);
+}
+
+.own-key.nearly {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}

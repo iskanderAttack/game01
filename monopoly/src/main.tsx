@@ -4,6 +4,8 @@ import App from './App';
 import { useApp } from './store/appStore';
 import './styles/global.css';
 import './styles/board.css';
+import './styles/board3d.css';
+import './styles/critter.css';
 
 // Доступ к состоянию из консоли — только в режиме разработки.
 if (import.meta.env.DEV) {

@@ -3,6 +3,8 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { botAction, botTradeReply } from '../game/bots';
 import { applyAction, createGame, makePlayer, type Action } from '../game/engine';
+import { characterFor } from '../game/characters';
+import type { Outfit } from '../game/wardrobe';
 import { getMode, type ModeId } from '../game/modes';
 import type { GameSettings, GameState, Player } from '../game/types';
 
@@ -40,12 +42,16 @@ export const DEFAULT_SETTINGS: GameSettings = {
 };
 
 const PALETTE = ['#D4A24C', '#38BDF8', '#FB7185', '#34D399', '#A78BFA', '#F472B6'];
-const EMOJI = ['🎩', '🚗', '🐕', '🚢', '👞', '🧵', '🦆', '🏎️', '🐈', '⛵'];
 
 interface Profile {
   name: string;
   emoji: string;
   color: string;
+  /** Своя зверушка и её наряд — переносятся из партии в партию. */
+  character: string;
+  outfit: Outfit;
+  /** Купленные вещи. Копятся между партиями. */
+  wardrobe: string[];
 }
 
 interface AppState {
@@ -93,11 +99,14 @@ let counter = 0;
 const newId = () => `p${Date.now().toString(36)}${(counter++).toString(36)}`;
 
 function rosterPlayer(name: string, index: number, isBot: boolean, level: GameSettings['botLevel']): Player {
+  const critter = characterFor(index);
   return makePlayer({
     id: newId(),
     name,
-    emoji: EMOJI[index % EMOJI.length],
+    emoji: critter.emoji,
     color: PALETTE[index % PALETTE.length],
+    character: critter.id,
+    outfit: {},
     isBot,
     botLevel: isBot ? level : undefined,
   });
@@ -111,7 +120,14 @@ export const useApp = create<AppState>()(
       screen: 'home',
       previousScreen: 'home',
       settings: { ...DEFAULT_SETTINGS },
-      profile: { name: 'Игрок', emoji: '🎩', color: '#D4A24C' },
+      profile: {
+        name: 'Игрок',
+        emoji: '🦊',
+        color: '#D4A24C',
+        character: 'fox',
+        outfit: {},
+        wardrobe: [],
+      },
       draft: [],
       game: null,
       netRole: 'local',
@@ -135,7 +151,15 @@ export const useApp = create<AppState>()(
         const { draft, settings, profile } = get();
         const index = draft.length;
         const label = name ?? (index === 0 ? profile.name : `Игрок ${index + 1}`);
-        set({ draft: [...draft, rosterPlayer(label, index, false, settings.botLevel)] });
+        const player = rosterPlayer(label, index, false, settings.botLevel);
+        // Хозяин устройства выходит на доску своей зверушкой и в своём наряде.
+        if (index === 0) {
+          player.character = profile.character;
+          player.emoji = profile.emoji;
+          player.color = profile.color;
+          player.outfit = { ...profile.outfit };
+        }
+        set({ draft: [...draft, player] });
       },
 
       addBot: () => {

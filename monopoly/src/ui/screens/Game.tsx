@@ -23,6 +23,7 @@ import { Board } from '../components/Board';
 import { PlayerStrip } from '../components/PlayerBits';
 import { DeedCard, groupProgress } from '../components/PropertyBits';
 import { TradeSheet } from '../components/TradeSheet';
+import { OwnershipMatrix } from '../components/OwnershipMatrix';
 import { haptic, play, tap } from '../../lib/feedback';
 
 export function GameScreen() {
@@ -42,6 +43,10 @@ export function GameScreen() {
   const [deedTile, setDeedTile] = useState<number | null>(null);
   const [assetsOpen, setAssetsOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
+  const [ownersOpen, setOwnersOpen] = useState(false);
+  const [tradePreset, setTradePreset] = useState<{ partnerId: string; takeTiles: number[] } | null>(
+    null,
+  );
   const [logOpen, setLogOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pop, setPop] = useState<{ id: number; amount: number } | null>(null);
@@ -306,8 +311,18 @@ export function GameScreen() {
           <button className="chip" onClick={() => { tap(); setAssetsOpen(true); }}>
             🏘️ Активы
           </button>
-          <button className="chip" onClick={() => { tap(); setTradeOpen(true); }}>
+          <button
+            className="chip"
+            onClick={() => {
+              tap();
+              setTradePreset(null);
+              setTradeOpen(true);
+            }}
+          >
             🤝 Обмен
+          </button>
+          <button className="chip" onClick={() => { tap(); setOwnersOpen(true); }}>
+            🗂️ Кто чем владеет
           </button>
           <button className="chip" onClick={() => { tap(); setLogOpen(true); }}>
             📜 Журнал
@@ -399,7 +414,25 @@ export function GameScreen() {
         onAction={(a) => send(a)}
       />
 
-      <TradeSheet open={tradeOpen} onClose={() => setTradeOpen(false)} />
+      <TradeSheet open={tradeOpen} onClose={() => setTradeOpen(false)} preset={tradePreset} />
+
+      <Sheet open={ownersOpen} onClose={() => setOwnersOpen(false)} title="Кто чем владеет">
+        <p className="muted" style={{ fontSize: 12.5, marginBottom: 12 }}>
+          Нажмите на клетку — откроется обмен с этим игроком, уже заполненный
+          его участками.
+        </p>
+        <OwnershipMatrix
+          state={game}
+          meId={me?.id}
+          onPick={(playerId, tiles) => {
+            if (playerId === me?.id) return;
+            tap('select');
+            setOwnersOpen(false);
+            setTradePreset({ partnerId: playerId, takeTiles: tiles });
+            setTradeOpen(true);
+          }}
+        />
+      </Sheet>
 
       <Sheet open={logOpen} onClose={() => setLogOpen(false)} title="Журнал партии">
         <div className="stack">

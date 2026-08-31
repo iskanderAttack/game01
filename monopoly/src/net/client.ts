@@ -153,6 +153,8 @@ function openSocket(ip: string, port: number, code: string) {
       name: profile.name,
       emoji: profile.emoji,
       color: profile.color,
+      character: profile.character,
+      outfit: profile.outfit,
     });
     heartbeat = setInterval(() => send({ t: 'ping' }), 8000);
   };

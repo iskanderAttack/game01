@@ -1,0 +1,147 @@
+/* ─────────────────────────── фигурки-зверушки ───────────────────────────
+   Микро-движения: фигурка дышит, слегка покачивается, шевелит хвостом и
+   моргает. У каждого игрока своя фаза (--critter-delay), поэтому стол не
+   выглядит как строй по команде. */
+
+.critter {
+  overflow: visible;
+  pointer-events: none;
+}
+
+.critter-shadow {
+  fill: rgba(0, 0, 0, 0.28);
+}
+
+.critter-sway,
+.critter-head,
+.critter-eyes,
+.critter-tail {
+  transform-box: fill-box;
+}
+
+.critter-sway {
+  transform-origin: 50% 100%;
+}
+
+.critter-head {
+  transform-origin: 50% 100%;
+}
+
+.critter-tail {
+  transform-origin: 90% 20%;
+}
+
+.critter-eyes {
+  transform-origin: 50% 50%;
+}
+
+.critter.critter-alive .critter-sway {
+  animation: critter-breathe 3.4s ease-in-out infinite;
+  animation-delay: var(--critter-delay, 0s);
+}
+
+.critter.critter-alive .critter-head {
+  animation: critter-nod 4.6s ease-in-out infinite;
+  animation-delay: var(--critter-delay, 0s);
+}
+
+.critter.critter-alive .critter-tail {
+  animation: critter-wag 2.6s ease-in-out infinite;
+  animation-delay: var(--critter-delay, 0s);
+}
+
+.critter.critter-alive .critter-eyes {
+  animation: critter-blink 6.2s ease-in-out infinite;
+  animation-delay: var(--critter-delay, 0s);
+}
+
+@keyframes critter-breathe {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.035, 0.975);
+  }
+}
+
+@keyframes critter-nod {
+  0%,
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+  30% {
+    transform: rotate(-2.4deg) translateY(-1px);
+  }
+  70% {
+    transform: rotate(2.4deg) translateY(-1px);
+  }
+}
+
+@keyframes critter-wag {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-11deg);
+  }
+}
+
+@keyframes critter-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.08);
+  }
+}
+
+/* Настроение: короткие всплески поверх обычного дыхания. */
+.critter.mood-happy .critter-sway {
+  animation: critter-cheer 0.9s ease-in-out 2;
+}
+
+.critter.mood-sad .critter-sway {
+  animation: critter-slump 1.2s ease-in-out 1 forwards;
+}
+
+.critter.mood-walk .critter-sway {
+  animation: critter-step 0.34s ease-in-out infinite;
+}
+
+@keyframes critter-cheer {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  35% {
+    transform: translateY(-11%) scale(1.06, 0.95);
+  }
+  70% {
+    transform: translateY(0) scale(0.96, 1.05);
+  }
+}
+
+@keyframes critter-slump {
+  to {
+    transform: translateY(4%) scale(1.04, 0.9);
+  }
+}
+
+@keyframes critter-step {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-7%) rotate(2deg);
+  }
+}
+
+/* В безопасном режиме отрисовки всё замирает. */
+.safe-motion .critter * {
+  animation: none !important;
+}

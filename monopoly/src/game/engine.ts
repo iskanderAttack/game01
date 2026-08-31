@@ -197,6 +197,8 @@ export function makePlayer(init: Partial<Player> & { id: string; name: string })
   return {
     emoji: '🎩',
     color: '#D4A24C',
+    character: 'fox',
+    outfit: {},
     isBot: false,
     money: 0,
     pos: 0,
@@ -249,6 +251,7 @@ export function createGame(settings: GameSettings, roster: Player[]): GameState 
     chancePos: 0,
     chestPos: 0,
     log: [],
+    lastMove: null,
     winnerIds: [],
     seed: Math.floor(Math.random() * 2 ** 31),
   };
@@ -291,11 +294,25 @@ function receive(state: GameState, playerId: string, amount: number) {
 
 /* ─────────────────────────── перемещение ─────────────────────────── */
 
+/** Записывает перемещение, чтобы доска знала, как вести фишку. */
+function noteMove(state: GameState, player: Player, from: number, kind: 'walk' | 'jump') {
+  if (from === player.pos) return;
+  state.lastMove = {
+    playerId: player.id,
+    from,
+    to: player.pos,
+    kind,
+    n: (state.lastMove?.n ?? 0) + 1,
+  };
+}
+
 function moveTo(state: GameState, player: Player, tile: number, collectGo: boolean) {
   const before = player.pos;
   const target = ((tile % BOARD_SIZE) + BOARD_SIZE) % BOARD_SIZE;
   if (collectGo && target < before) passGo(state, player);
   player.pos = target;
+  // Карточка «перейдите на…» ведёт фишку по доске, как обычный ход.
+  noteMove(state, player, before, 'walk');
 }
 
 function passGo(state: GameState, player: Player) {
@@ -305,7 +322,9 @@ function passGo(state: GameState, player: Player) {
 }
 
 function sendToJail(state: GameState, player: Player) {
+  const before = player.pos;
   player.pos = JAIL_INDEX;
+  noteMove(state, player, before, 'jump');
   player.inJail = true;
   player.jailTurns = 0;
   player.stats.jailVisits += 1;
@@ -1018,9 +1037,11 @@ function settleDebtIfPossible(state: GameState, player: Player) {
 }
 
 function movePlayer(state: GameState, player: Player, steps: number, allowPassGo: boolean) {
+  const before = player.pos;
   const next = player.pos + steps;
   if (allowPassGo && next >= BOARD_SIZE) passGo(state, player);
   player.pos = next % BOARD_SIZE;
+  noteMove(state, player, before, 'walk');
   state.stage = 'move';
   landOn(state, player);
 }

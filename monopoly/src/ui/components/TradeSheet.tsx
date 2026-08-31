@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useApp, useMe } from '../../store/appStore';
 import { ownedTiles, tileAt } from '../../game/engine';
 import { money } from '../../game/money';
@@ -9,7 +9,16 @@ import { tap } from '../../lib/feedback';
 const STEP = 50000;
 
 /** Обмен участками и деньгами между игроками. */
-export function TradeSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function TradeSheet({
+  open,
+  onClose,
+  preset,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** С кем и о чём торговаться — приходит из матрицы «кто чем владеет». */
+  preset?: { partnerId: string; takeTiles: number[] } | null;
+}) {
   const game = useApp((s) => s.game);
   const me = useMe();
   const [partnerId, setPartnerId] = useState<string | null>(null);
@@ -22,6 +31,16 @@ export function TradeSheet({ open, onClose }: { open: boolean; onClose: () => vo
     () => (game && me ? game.players.filter((p) => !p.bankrupt && p.id !== me.id) : []),
     [game, me],
   );
+
+  /* Пришли из матрицы владения — сразу подставляем собеседника и его клетки. */
+  useEffect(() => {
+    if (!open || !preset) return;
+    setPartnerId(preset.partnerId);
+    setTake(preset.takeTiles);
+    setGive([]);
+    setGiveMoney(0);
+    setTakeMoney(0);
+  }, [open, preset]);
 
   const incoming = useMemo(
     () => (game && me ? game.trades.filter((t) => t.toId === me.id) : []),

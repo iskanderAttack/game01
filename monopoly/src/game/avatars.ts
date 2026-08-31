@@ -1,3 +1,5 @@
+import { characterFor } from './characters';
+
 export const AVATAR_EMOJI = [
   '🎩',
   '🚗',
@@ -29,8 +31,10 @@ export const AVATAR_COLORS = [
 ];
 
 export function avatarFor(index: number) {
+  const critter = characterFor(index);
   return {
-    emoji: AVATAR_EMOJI[index % AVATAR_EMOJI.length],
+    emoji: critter.emoji,
     color: AVATAR_COLORS[index % AVATAR_COLORS.length],
+    character: critter.id,
   };
 }

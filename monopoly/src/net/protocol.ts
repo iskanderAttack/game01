@@ -1,5 +1,6 @@
 import type { Action } from '../game/engine';
 import type { GameSettings, GameState } from '../game/types';
+import type { Outfit } from '../game/wardrobe';
 
 /**
  * 2 — у клиента появился постоянный `session`, по которому он возвращается
@@ -43,6 +44,9 @@ export type ClientMessage =
       name: string;
       emoji: string;
       color: string;
+      /** Своя зверушка и её наряд — чтобы гость вышел на доску собой. */
+      character?: string;
+      outfit?: Outfit;
     }
   /** Любое игровое действие — хост проверит его движком. */
   | { t: 'act'; action: Action }
