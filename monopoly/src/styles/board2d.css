@@ -1,0 +1,193 @@
+/* ─────────────────────────── плоская доска ───────────────────────────
+   Никакой перспективы, камеры и трёхмерного контекста: сорок обычных
+   прямоугольников в процентах от квадрата. Браузеру нечего складывать в
+   слои, поэтому доска не мигает и не пропадает частями даже на телефоне
+   с очень плотным экраном. */
+
+.board2-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.board2 {
+  position: relative;
+  width: min(100%, 56dvh);
+  aspect-ratio: 1;
+  flex: none;
+  border-radius: var(--r-md);
+  background: linear-gradient(155deg, #15381f, #0b2114 62%, #091b10);
+  border: 1px solid rgba(212, 175, 105, 0.3);
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ───────────────────────────── клетка ───────────────────────────── */
+
+.b2-tile {
+  position: absolute;
+  background: #f2ead6;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.b2-tile.mortgaged {
+  opacity: 0.45;
+}
+
+.b2-tile.hi {
+  box-shadow: 0 0 0 2px var(--accent-2);
+  z-index: 6;
+}
+
+.b2-corner {
+  background: #e7dbbe;
+}
+
+/* Цветная полоса группы всегда со стороны центра доски. */
+.b2-band {
+  position: absolute;
+}
+
+.b2-bottom .b2-band {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 22%;
+}
+
+.b2-top .b2-band {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 22%;
+}
+
+.b2-left .b2-band {
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 22%;
+}
+
+.b2-right .b2-band {
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 22%;
+}
+
+.b2-emoji {
+  font-size: clamp(9px, 2.6vw, 15px);
+  line-height: 1;
+}
+
+.b2-corner .b2-emoji {
+  font-size: clamp(15px, 4.4vw, 26px);
+}
+
+/* Эмодзи владельца — по нему сразу видно, с кем идти на обмен. */
+.b2-own {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  font-size: clamp(7px, 2vw, 11px);
+  line-height: 1;
+  padding: 1px;
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 3px 0 2px 0;
+}
+
+.b2-house {
+  position: absolute;
+  left: 1px;
+  top: 1px;
+  min-width: 10px;
+  font-size: clamp(7px, 1.9vw, 10px);
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  color: #06340f;
+  background: #62d888;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+.b2-house.hotel,
+.b2-house.tower {
+  background: none;
+  color: inherit;
+}
+
+/* ───────────────────────────── центр ───────────────────────────── */
+
+.board2-center {
+  position: absolute;
+  inset: 13.64%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.b2-season {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-2);
+}
+
+.b2-actor {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.b2-note {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Центр доски не принимает касания, а кнопка внутри него — принимает. */
+.b2-tools {
+  pointer-events: auto;
+  margin-top: 4px;
+}
+
+/* ───────────────────────────── фишки ───────────────────────────── */
+
+.b2-pawn {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  transition: left 92ms linear, top 92ms linear;
+}
+
+.b2-pawn.on {
+  box-shadow: 0 0 0 2px var(--accent-2), 0 1px 4px rgba(0, 0, 0, 0.6);
+  z-index: 30 !important;
+}
+
+.safe-motion .b2-pawn {
+  transition: none;
+}

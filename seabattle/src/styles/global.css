@@ -116,11 +116,11 @@ p {
   width: 80vmax;
   height: 80vmax;
   border-radius: 50%;
-  /* Размытия здесь больше нет: радиальный градиент и так мягкий, а blur(100px)
-     по пятну в два экрана шириной пересчитывался каждый кадр и тормозил всё
-     приложение. */
   opacity: 0.26;
-  animation: swell 40s ease-in-out infinite alternate;
+  /* Пятна неподвижны и без размытия. Раньше здесь были blur(100px) и вечная
+     анимация — два слоя размером почти в два экрана, которые браузер держит
+     в видеопамяти и пересчитывает каждый кадр. На телефоне с плотным экраном
+     от них подтормаживало всё приложение и мигали куски интерфейса. */
 }
 
 .ocean::before {
@@ -133,16 +133,6 @@ p {
   background: radial-gradient(circle, #1d4ed8 0%, transparent 62%);
   bottom: -38vmax;
   right: -26vmax;
-  animation-delay: -15s;
-}
-
-@keyframes swell {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  100% {
-    transform: translate3d(5vmax, 4vmax, 0) scale(1.16);
-  }
 }
 
 /* Лёгкая рябь поверх фона. */

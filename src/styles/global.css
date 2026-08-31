@@ -105,9 +105,11 @@ p {
   width: 70vmax;
   height: 70vmax;
   border-radius: 50%;
-  filter: blur(90px);
   opacity: 0.4;
-  animation: drift 26s ease-in-out infinite alternate;
+  /* Пятна стоят на месте. Раньше они бесконечно плыли и увеличивались, а
+     это два слоя размером почти в два экрана, которые браузер держит в
+     видеопамяти и пересчитывает каждый кадр — на телефоне с плотным экраном
+     от них подтормаживало всё приложение и мигали куски интерфейса. */
 }
 
 .aurora::before {
@@ -120,16 +122,6 @@ p {
   background: radial-gradient(circle, var(--accent-2) 0%, transparent 65%);
   bottom: -35vmax;
   right: -25vmax;
-  animation-delay: -13s;
-}
-
-@keyframes drift {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  100% {
-    transform: translate3d(6vmax, 4vmax, 0) scale(1.15);
-  }
 }
 
 .grain {

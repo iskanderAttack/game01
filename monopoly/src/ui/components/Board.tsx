@@ -1,4 +1,13 @@
-import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { BOARD, GROUP_COLORS, isBuyable } from '../../game/board';
 import { moneyShort } from '../../game/money';
 import type { GameState, Player, Tile } from '../../game/types';
@@ -10,6 +19,10 @@ import {
   tileCenter,
   tileRect,
 } from './boardGeometry';
+import { slotOn, useWalk } from './boardMotion';
+import { BoardToggle } from './BoardToggle';
+import { Dice } from './Dice';
+import { BoardPlain } from './BoardPlain';
 import { Critter } from './Critter';
 import { SafeMotion } from './Shell';
 import { useApp } from '../../store/appStore';
@@ -32,21 +45,36 @@ import { tap } from '../../lib/feedback';
 const FOLLOW_SPAN = 380;
 /** Обзор кладём доску положе: так она не сжимается в узкую полоску. */
 const OVERVIEW_TILT = 28;
+/*
+ * Потолок приближения. Держим его низким намеренно: доску браузер
+ * растрирует в один слой размером доска × масштаб × плотность экрана, и на
+ * телефоне с плотным экраном при большом приближении этот слой перестаёт
+ * помещаться в память — доска начинает пропадать кусками.
+ */
+const MAX_ZOOM = 1.8;
 
 type CameraMode = 'follow' | 'overview' | 'free';
 
-export function Board({
-  state,
-  highlight,
-  onTile,
-}: {
+interface BoardProps {
   state: GameState;
   highlight?: number | null;
   onTile?: (index: number) => void;
-}) {
-  const safe = useContext(SafeMotion);
+}
+
+/**
+ * Какую доску показать. Это не два оформления одной и той же сцены, а две
+ * разные отрисовки: объёмная живёт в трёхмерном контексте с камерой,
+ * плоская — обычные прямоугольники без единого слоя. Поэтому и переключение
+ * идёт здесь, а не классом на общем корне.
+ */
+export function Board(props: BoardProps) {
   const quality = useApp((s) => s.boardQuality);
-  const flat = quality === 'fast';
+  if (quality === 'fast') return <BoardPlain {...props} />;
+  return <Board3D {...props} />;
+}
+
+function Board3D({ state, highlight, onTile }: BoardProps) {
+  const safe = useContext(SafeMotion);
   const viewportRef = useRef<HTMLDivElement>(null);
   const size = useElementSize(viewportRef);
   const shown = useWalk(state, !safe);
@@ -57,25 +85,22 @@ export function Board({
   /* Обзор считается точно, а не подгоняется замерами: наклонённая доска в
      перспективе — трапеция, её проекцию можно посчитать формулой. */
   const overview = useMemo(
-    () => fitOverview(size.w, size.h, flat ? 0 : OVERVIEW_TILT),
-    [size.w, size.h, flat],
+    () => fitOverview(size.w, size.h, OVERVIEW_TILT),
+    [size.w, size.h],
   );
   const fitZoom = overview.zoom;
 
 
   const followZoom = useMemo(() => {
     if (!size.w || !size.h) return 0.3;
-    // Без наклона перспектива не растягивает картинку, и при том же масштабе
-    // в кадр попадает заметно меньше клеток — берём план пошире.
-    const span = flat ? FOLLOW_SPAN * 1.4 : FOLLOW_SPAN;
-    const wanted = Math.min(size.w, size.h) / span;
-    return Math.max(fitZoom, Math.min(wanted, 2.4));
-  }, [size.w, size.h, fitZoom, flat]);
+    const wanted = Math.min(size.w, size.h) / FOLLOW_SPAN;
+    return Math.max(fitZoom, Math.min(wanted, MAX_ZOOM));
+  }, [size.w, size.h, fitZoom]);
 
   const [mode, setMode] = useState<CameraMode>(safe ? 'overview' : 'follow');
-  // В «быстром» виде доска лежит плоско: перспектива — самая дорогая часть.
-  const tilt = flat ? 0 : mode === 'overview' || safe ? OVERVIEW_TILT : TILT_DEG;
-  useFrameWatch(!flat && !safe);
+  const tilt = mode === 'overview' || safe ? OVERVIEW_TILT : TILT_DEG;
+  const pinned = useApp((s) => s.qualityPinned);
+  useFrameWatch(!safe && !pinned);
   const [free, setFree] = useState({ x: BOARD_PX / 2, y: BOARD_PX / 2, zoom: 0 });
 
   /* Куда смотрит камера. В слежении — на активную фишку, слегка подтянутую
@@ -108,18 +133,29 @@ export function Board({
     `scale(${target.zoom}) rotateX(${tilt}deg) ` +
     `translate(${-target.x}px, ${-target.y}px)`;
 
+  /* Обработчик касания не должен меняться от рендера к рендеру: иначе
+     `memo` на клетках не сработает ни разу. Прячем изменчивое в ссылки. */
+  const gesturesRef = useRef<{ moved: () => boolean } | null>(null);
+  const onTileRef = useRef(onTile);
+  onTileRef.current = onTile;
+  const handleTile = useCallback((index: number) => {
+    if (gesturesRef.current?.moved()) return;
+    onTileRef.current?.(index);
+  }, []);
+
   const gestures = usePanZoom({
     disabled: safe,
     getCamera: () => ({ x: target.x, y: target.y, zoom: target.zoom }),
     onChange: (next) => {
       setMode('free');
-      setFree({ x: next.x, y: next.y, zoom: clamp(next.zoom, fitZoom * 0.9, 2.8) });
+      setFree({ x: next.x, y: next.y, zoom: clamp(next.zoom, fitZoom * 0.9, MAX_ZOOM) });
     },
   });
+  gesturesRef.current = gestures;
 
   return (
     <div
-      className={`board-viewport ${flat ? 'flat' : ''}`}
+      className="board-viewport"
       ref={viewportRef}
       style={{ ['--tilt' as string]: `${tilt}deg` }}
       {...gestures.handlers}
@@ -137,18 +173,24 @@ export function Board({
         <div className="board-slab" />
         <div className="board-felt" />
 
-        {BOARD.map((tile) => (
-          <TileView
-            key={tile.index}
-            tile={tile}
-            state={state}
-            highlight={highlight === tile.index}
-            onTile={(i) => {
-              if (gestures.moved()) return;
-              onTile?.(i);
-            }}
-          />
-        ))}
+        {BOARD.map((tile) => {
+          const prop = state.properties[tile.index];
+          const owner = prop?.ownerId
+            ? state.players.find((p) => p.id === prop.ownerId)
+            : null;
+          return (
+            <TileView
+              key={tile.index}
+              tile={tile}
+              ownerColor={owner?.color}
+              ownerEmoji={owner?.emoji}
+              mortgaged={!!prop?.mortgaged}
+              houses={prop?.houses ?? 0}
+              highlight={highlight === tile.index}
+              onTile={handleTile}
+            />
+          );
+        })}
 
         {mode !== 'follow' && <BoardCenter state={state} />}
 
@@ -161,7 +203,6 @@ export function Board({
               index={shown[p.id] ?? p.pos}
               slot={slotOn(state, p, shown)}
               active={p.id === actor?.id}
-              animate={!safe}
             />
           ))}
       </div>
@@ -194,6 +235,7 @@ export function Board({
             ⤢ К фишке
           </button>
         )}
+        <BoardToggle />
       </div>
     </div>
   );
@@ -201,26 +243,38 @@ export function Board({
 
 /* ───────────────────────────── клетка ───────────────────────────── */
 
-function TileView({
+/*
+ * Клетка перерисовывается, только если изменилась она сама.
+ *
+ * Раньше сюда передавалось всё состояние партии, и любое действие — а во
+ * время хода фишки состояние меняется одиннадцать раз в секунду — заставляло
+ * React заново обходить все сорок клеток со всей их начинкой. Теперь клетка
+ * получает ровно то, от чего зависит её вид.
+ */
+const TileView = memo(function TileView({
   tile,
-  state,
+  ownerColor,
+  ownerEmoji,
+  mortgaged,
+  houses,
   highlight,
   onTile,
 }: {
   tile: Tile;
-  state: GameState;
+  ownerColor?: string;
+  ownerEmoji?: string;
+  mortgaged: boolean;
+  houses: number;
   highlight: boolean;
   onTile: (index: number) => void;
 }) {
   const rect = tileRect(tile.index);
   const side = sideOf(tile.index);
-  const prop = state.properties[tile.index];
-  const owner = prop?.ownerId ? state.players.find((p) => p.id === prop.ownerId) : null;
 
   const classes = ['t3', `t3-${side}`];
-  if (prop?.mortgaged) classes.push('mortgaged');
+  if (mortgaged) classes.push('mortgaged');
   if (highlight) classes.push('highlight');
-  if (owner) classes.push('owned');
+  if (ownerColor) classes.push('owned');
 
   return (
     <div
@@ -233,7 +287,7 @@ function TileView({
       )}
 
       {/* Владение видно сразу: лицо клетки окрашивается в цвет хозяина. */}
-      {owner && <div className="t3-own" style={{ background: owner.color }} />}
+      {ownerColor && <div className="t3-own" style={{ background: ownerColor }} />}
 
       <div className="t3-face">
         {tile.emoji && <span className="t3-emoji">{tile.emoji}</span>}
@@ -243,17 +297,17 @@ function TileView({
         )}
       </div>
 
-      {prop && prop.houses > 0 && <Buildings houses={prop.houses} />}
+      {houses > 0 && <Buildings houses={houses} />}
 
       {/* Флажок с эмодзи владельца — понятно, с кем идти на обмен. */}
-      {owner && (
-        <div className="t3-flag" style={{ ['--flag' as string]: owner.color }}>
-          <span>{owner.emoji}</span>
+      {ownerColor && (
+        <div className="t3-flag" style={{ ['--flag' as string]: ownerColor }}>
+          <span>{ownerEmoji}</span>
         </div>
       )}
     </div>
   );
-}
+});
 
 function Buildings({ houses }: { houses: number }) {
   if (houses >= 6) return <div className="t3-builds"><i className="tower" /></div>;
@@ -269,21 +323,18 @@ function Buildings({ houses }: { houses: number }) {
 
 /* ───────────────────────────── фишка ───────────────────────────── */
 
-function Pawn({
+const Pawn = memo(function Pawn({
   player,
   index,
   slot,
   active,
-  animate,
 }: {
   player: Player;
   index: number;
   slot: number;
   active: boolean;
-  animate: boolean;
 }) {
   const spot = pawnSpot(index, slot);
-  const phase = useMemo(() => hashPhase(player.id), [player.id]);
 
   return (
     <div
@@ -297,15 +348,22 @@ function Pawn({
           outfit={player.outfit}
           accent={player.color}
           size={46}
-          phase={phase}
-          // Внутри трёхмерной сцены каждая анимация заставляет
-          // перерисовывать всю доску. Шевелится только тот, чей ход.
-          animate={animate && active}
+          /*
+           * На доске фигурки стоят смирно.
+           *
+           * Дыхание и моргание нарисованы преобразованиями внутри SVG, а такие
+           * браузер не умеет крутить отдельным слоем: каждый кадр он заново
+           * рисовал всю трёхмерную сцену — сорок клеток с домиками и флажками.
+           * Одной шевелящейся фигурки хватало, чтобы доска не отдыхала никогда.
+           * Микро-движения остались там, где сцена не мешает: на главном
+           * экране и в бутике.
+           */
+          animate={false}
         />
       </div>
     </div>
   );
-}
+});
 
 /* ───────────────────────────── центр ───────────────────────────── */
 
@@ -324,109 +382,6 @@ function BoardCenter({ state }: { state: GameState }) {
       <div className="center-note">{state.log[0]?.text ?? 'Бросайте кубики'}</div>
     </div>
   );
-}
-
-const PIPS: Record<number, number[]> = {
-  1: [4],
-  2: [0, 8],
-  3: [0, 4, 8],
-  4: [0, 2, 6, 8],
-  5: [0, 2, 4, 6, 8],
-  6: [0, 2, 3, 5, 6, 8],
-};
-
-export function Dice({ values, rolling }: { values: [number, number]; rolling?: boolean }) {
-  return (
-    <div className="dice-row">
-      {values.map((v, i) => (
-        <div key={i} className={`die ${rolling ? 'rolling' : ''}`}>
-          {Array.from({ length: 9 }).map((_, cell) => (
-            <span key={cell}>{PIPS[v]?.includes(cell) ? <i /> : null}</span>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ───────────────────────────── движение фишек ─────────────────────────────
-   Фишка не телепортируется: она идёт по клеткам, одну за другой. Куда и как
-   именно — берём из состояния (`lastMove`), поэтому на всех устройствах
-   движение одинаковое. */
-
-const STEP_MS = 92;
-
-function useWalk(state: GameState | null, animate: boolean): Record<string, number> {
-  const [shown, setShown] = useState<Record<string, number>>(() => snapshot(state));
-
-  // Новые игроки и переносы по дуге ставятся сразу.
-  useEffect(() => {
-    if (!state) return;
-    setShown((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      for (const p of state.players) {
-        if (next[p.id] === undefined) {
-          next[p.id] = p.pos;
-          changed = true;
-        }
-      }
-      const jump = state.lastMove;
-      if (jump && jump.kind === 'jump' && next[jump.playerId] !== jump.to) {
-        next[jump.playerId] = jump.to;
-        changed = true;
-      }
-      return changed ? next : prev;
-    });
-  }, [state]);
-
-  useEffect(() => {
-    if (!state) return;
-    const walking = state.players.some(
-      (p) => shown[p.id] !== undefined && shown[p.id] !== p.pos,
-    );
-    if (!walking) return;
-
-    if (!animate) {
-      setShown(snapshot(state));
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setShown((prev) => {
-        const next = { ...prev };
-        for (const p of state.players) {
-          const cur = next[p.id];
-          if (cur === undefined || cur === p.pos) continue;
-          next[p.id] = (cur + 1) % 40;
-        }
-        return next;
-      });
-    }, STEP_MS);
-    return () => clearTimeout(timer);
-  }, [state, shown, animate]);
-
-  return shown;
-}
-
-function snapshot(state: GameState | null): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const p of state?.players ?? []) out[p.id] = p.pos;
-  return out;
-}
-
-/** Место фишки на клетке: у каждого игрока свой угол, чтобы не наезжали. */
-function slotOn(state: GameState, player: Player, shown: Record<string, number>): number {
-  const here = state.players.filter(
-    (p) => !p.bankrupt && (shown[p.id] ?? p.pos) === (shown[player.id] ?? player.pos),
-  );
-  return Math.max(0, here.findIndex((p) => p.id === player.id));
-}
-
-function hashPhase(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 997;
-  return h % 10;
 }
 
 /* ───────────────────────────── жесты ───────────────────────────── */

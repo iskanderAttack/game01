@@ -170,7 +170,7 @@ export function GameScreen() {
         {qualityAuto && !qualityNoticeSeen && (
           <div className="notice" style={{ position: 'relative' }}>
             Доска стала плоской: телефон не успевал рисовать объёмную, и она
-            упростилась сама. Вернуть — в настройках, «Вид доски».
+            упростилась сама. Вернуть — кнопкой «🧊 Объёмная» на самой доске.
             <button
               className="btn small"
               style={{ marginTop: 8 }}

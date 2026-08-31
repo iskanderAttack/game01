@@ -76,6 +76,12 @@ interface AppState {
   boardQuality: BoardQuality;
   /** Упрощение включилось само, потому что телефон не успевал. */
   qualityAuto: boolean;
+  /**
+   * Игрок выбрал вид доски руками — присмотр за плавностью больше не лезет.
+   * Иначе получалась перепалка: человек включает объёмную доску, а сторож
+   * через полторы секунды выключает её обратно.
+   */
+  qualityPinned: boolean;
   setBoardQuality: (quality: BoardQuality, auto?: boolean) => void;
 
   go: (screen: Screen) => void;
@@ -148,6 +154,7 @@ export const useApp = create<AppState>()(
       seenIntro: false,
       boardQuality: 'rich',
       qualityAuto: false,
+      qualityPinned: false,
       error: null,
 
       go: (screen) => set((s) => ({ screen, previousScreen: s.screen })),
@@ -246,7 +253,12 @@ export const useApp = create<AppState>()(
 
       nudgeBots: () => scheduleBot(get, set),
 
-      setBoardQuality: (quality, auto = false) => set({ boardQuality: quality, qualityAuto: auto }),
+      setBoardQuality: (quality, auto = false) =>
+        set({
+          boardQuality: quality,
+          qualityAuto: auto,
+          qualityPinned: get().qualityPinned || !auto,
+        }),
 
       quitGame: () => {
         if (botTimer) clearTimeout(botTimer);

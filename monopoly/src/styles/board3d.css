@@ -189,7 +189,6 @@
   gap: 3px;
   align-items: flex-end;
   justify-content: center;
-  transform: translateZ(9px);
 }
 
 .t3-bottom .t3-builds {
@@ -248,9 +247,9 @@
   right: 2px;
   bottom: 2px;
   z-index: 4;
-  /* Флажок лежит на клетке, а не стоит отдельной трёхмерной плоскостью:
-     двадцать восемь таких плоскостей заметно грузили отрисовку. */
-  transform: translateZ(10px);
+  /* Ни флажок, ни домики не приподняты над клеткой: каждый translateZ внутри
+     трёхмерной сцены — отдельный слой в видеопамяти, а их набиралось под
+     семьдесят штук. Глубины на глаз это не убавило, а мигание убрало. */
 }
 
 .t3-flag span {
@@ -297,22 +296,12 @@
   transform-origin: 50% 100%;
 }
 
+/* Подсветка активной фишки статичная. Пульсация была бесконечной анимацией
+   внутри трёхмерной сцены, а такую браузер не умеет крутить отдельным слоем:
+   каждый кадр перерисовывалась вся доска. */
 .pawn.active .pawn-mark {
   opacity: 0.95;
-  box-shadow: 0 0 16px 5px currentColor;
-  animation: pawn-pulse 1.6s ease-in-out infinite;
-}
-
-@keyframes pawn-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.85;
-  }
-  50% {
-    transform: scale(1.22);
-    opacity: 1;
-  }
+  box-shadow: 0 0 14px 4px currentColor;
 }
 
 /* ───────────────────────────── центр доски ───────────────────────────── */
@@ -852,24 +841,3 @@
 /* ─────────────── «быстрый» вид: плоская доска для слабых телефонов ───────────────
    Убираем всё, что стоит дорого при отрисовке: объём, тени, приподнятые
    элементы. Читаемость и камера остаются прежними. */
-.board-viewport.flat .board-slab {
-  display: none;
-}
-
-.board-viewport.flat .board-stage,
-.board-viewport.flat .pawn {
-  transform-style: flat;
-}
-
-.board-viewport.flat .t3-builds,
-.board-viewport.flat .t3-flag {
-  transform: none;
-}
-
-.board-viewport.flat .pawn-stand {
-  transform: translate(-50%, -100%);
-}
-
-.board-viewport.flat .board-felt {
-  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.45);
-}
