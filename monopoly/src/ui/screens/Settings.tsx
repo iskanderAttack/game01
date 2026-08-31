@@ -72,7 +72,7 @@ export function SettingsScreen() {
             <div>
               <div style={{ fontWeight: 700 }}>Монополия</div>
               <div className="muted" style={{ fontSize: 13 }}>
-                Версия 1.0 · офлайн и по Wi-Fi
+                Версия 1.1.0 · офлайн и по Wi-Fi
               </div>
             </div>
           </div>
