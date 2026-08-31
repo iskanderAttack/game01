@@ -12,6 +12,8 @@ import {
 } from './boardGeometry';
 import { Critter } from './Critter';
 import { SafeMotion } from './Shell';
+import { useApp } from '../../store/appStore';
+import { diag } from '../../lib/diag';
 import { tap } from '../../lib/feedback';
 
 /**
@@ -43,6 +45,8 @@ export function Board({
   onTile?: (index: number) => void;
 }) {
   const safe = useContext(SafeMotion);
+  const quality = useApp((s) => s.boardQuality);
+  const flat = quality === 'fast';
   const viewportRef = useRef<HTMLDivElement>(null);
   const size = useElementSize(viewportRef);
   const shown = useWalk(state, !safe);
@@ -53,20 +57,25 @@ export function Board({
   /* Обзор считается точно, а не подгоняется замерами: наклонённая доска в
      перспективе — трапеция, её проекцию можно посчитать формулой. */
   const overview = useMemo(
-    () => fitOverview(size.w, size.h, OVERVIEW_TILT),
-    [size.w, size.h],
+    () => fitOverview(size.w, size.h, flat ? 0 : OVERVIEW_TILT),
+    [size.w, size.h, flat],
   );
   const fitZoom = overview.zoom;
 
 
   const followZoom = useMemo(() => {
     if (!size.w || !size.h) return 0.3;
-    const wanted = Math.min(size.w, size.h) / FOLLOW_SPAN;
+    // Без наклона перспектива не растягивает картинку, и при том же масштабе
+    // в кадр попадает заметно меньше клеток — берём план пошире.
+    const span = flat ? FOLLOW_SPAN * 1.4 : FOLLOW_SPAN;
+    const wanted = Math.min(size.w, size.h) / span;
     return Math.max(fitZoom, Math.min(wanted, 2.4));
-  }, [size.w, size.h, fitZoom]);
+  }, [size.w, size.h, fitZoom, flat]);
 
   const [mode, setMode] = useState<CameraMode>(safe ? 'overview' : 'follow');
-  const tilt = mode === 'overview' || safe ? OVERVIEW_TILT : TILT_DEG;
+  // В «быстром» виде доска лежит плоско: перспектива — самая дорогая часть.
+  const tilt = flat ? 0 : mode === 'overview' || safe ? OVERVIEW_TILT : TILT_DEG;
+  useFrameWatch(!flat && !safe);
   const [free, setFree] = useState({ x: BOARD_PX / 2, y: BOARD_PX / 2, zoom: 0 });
 
   /* Куда смотрит камера. В слежении — на активную фишку, слегка подтянутую
@@ -110,7 +119,7 @@ export function Board({
 
   return (
     <div
-      className="board-viewport"
+      className={`board-viewport ${flat ? 'flat' : ''}`}
       ref={viewportRef}
       style={{ ['--tilt' as string]: `${tilt}deg` }}
       {...gestures.handlers}
@@ -289,7 +298,9 @@ function Pawn({
           accent={player.color}
           size={46}
           phase={phase}
-          animate={animate}
+          // Внутри трёхмерной сцены каждая анимация заставляет
+          // перерисовывать всю доску. Шевелится только тот, чей ход.
+          animate={animate && active}
         />
       </div>
     </div>
@@ -503,6 +514,53 @@ function usePanZoom({
   };
 
   return { handlers, moved: () => movedRef.current };
+}
+
+/* ───────────────────────────── присмотр за плавностью ─────────────────────────
+   Телефоны разные, и заранее не угадать, потянет ли конкретный трёхмерную
+   доску. Поэтому не гадаем, а меряем: если кадры идут рывками, доска сама
+   ложится плоско. Обратно само не включается — только руками в настройках. */
+
+/** Кадр дольше сорока миллисекунд — это уже видимый рывок. */
+const SLOW_FRAME_MS = 40;
+const SAMPLE_FRAMES = 90;
+const BAD_SHARE = 0.35;
+
+function useFrameWatch(active: boolean) {
+  const setBoardQuality = useApp((s) => s.setBoardQuality);
+  const done = useRef(false);
+
+  useEffect(() => {
+    if (!active || done.current) return;
+    if (typeof requestAnimationFrame === 'undefined') return;
+
+    let frames = 0;
+    let slow = 0;
+    let last = performance.now();
+    let raf = 0;
+
+    const tick = (now: number) => {
+      const delta = now - last;
+      last = now;
+      // Первый кадр после простоя всегда длинный — он ничего не говорит.
+      if (delta < 400) {
+        frames += 1;
+        if (delta > SLOW_FRAME_MS) slow += 1;
+      }
+      if (frames < SAMPLE_FRAMES) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      done.current = true;
+      if (slow / frames > BAD_SHARE) {
+        diag('доска', `упрощена: ${slow} рывков из ${frames} кадров`);
+        setBoardQuality('fast', true);
+      }
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [active, setBoardQuality]);
 }
 
 /* ───────────────────────────── вписывание обзора ─────────────────────────────

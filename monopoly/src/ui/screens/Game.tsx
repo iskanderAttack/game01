@@ -51,6 +51,8 @@ export function GameScreen() {
   const [shopOpen, setShopOpen] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
   const [seenMonth, setSeenMonth] = useState<number | null>(null);
+  const [qualityNoticeSeen, setQualityNoticeSeen] = useState(false);
+  const qualityAuto = useApp((s) => s.qualityAuto);
   const [tradePreset, setTradePreset] = useState<{ partnerId: string; takeTiles: number[] } | null>(
     null,
   );
@@ -163,6 +165,24 @@ export function GameScreen() {
 
       <div className="play-body">
         <PlayerStrip state={game} meId={me?.id} onPick={() => setLogOpen(true)} />
+
+        {/* Если доска упростилась сама — честно сказать об этом, а не молча. */}
+        {qualityAuto && !qualityNoticeSeen && (
+          <div className="notice" style={{ position: 'relative' }}>
+            Доска стала плоской: телефон не успевал рисовать объёмную, и она
+            упростилась сама. Вернуть — в настройках, «Вид доски».
+            <button
+              className="btn small"
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                tap();
+                setQualityNoticeSeen(true);
+              }}
+            >
+              Понятно
+            </button>
+          </div>
+        )}
 
         {/* Новость месяца — её видят все и одновременно. */}
         {game.market && game.headline && seenMonth !== game.market.month && (

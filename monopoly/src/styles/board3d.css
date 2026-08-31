@@ -33,7 +33,9 @@
   top: 50%;
   transform-origin: 0 0;
   transform-style: preserve-3d;
-  will-change: transform;
+  /* will-change тут был вреден: он закреплял за доской 1100×1100 отдельный
+     слой, а с учётом плотности экрана это десятки мегабайт видеопамяти.
+     Телефон начинал выбрасывать куски слоя — отсюда исчезающие клетки. */
 }
 
 /* Толщина доски: плита чуть больше самой доски и опущена под неё. */
@@ -46,7 +48,7 @@
   border-radius: 18px;
   background: linear-gradient(160deg, #6b4f22, #37280f);
   transform: translateZ(-26px);
-  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.65);
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.55);
 }
 
 .board-felt {
@@ -246,8 +248,9 @@
   right: 2px;
   bottom: 2px;
   z-index: 4;
-  transform: translateZ(22px) rotateX(calc(-1 * var(--tilt, 42deg)));
-  transform-origin: 50% 100%;
+  /* Флажок лежит на клетке, а не стоит отдельной трёхмерной плоскостью:
+     двадцать восемь таких плоскостей заметно грузили отрисовку. */
+  transform: translateZ(10px);
 }
 
 .t3-flag span {
@@ -283,8 +286,7 @@
   width: 30px;
   height: 12px;
   border-radius: 50%;
-  opacity: 0.5;
-  filter: blur(1px);
+  opacity: 0.42;
 }
 
 .pawn-stand {
@@ -845,4 +847,29 @@
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+
+/* ─────────────── «быстрый» вид: плоская доска для слабых телефонов ───────────────
+   Убираем всё, что стоит дорого при отрисовке: объём, тени, приподнятые
+   элементы. Читаемость и камера остаются прежними. */
+.board-viewport.flat .board-slab {
+  display: none;
+}
+
+.board-viewport.flat .board-stage,
+.board-viewport.flat .pawn {
+  transform-style: flat;
+}
+
+.board-viewport.flat .t3-builds,
+.board-viewport.flat .t3-flag {
+  transform: none;
+}
+
+.board-viewport.flat .pawn-stand {
+  transform: translate(-50%, -100%);
+}
+
+.board-viewport.flat .board-felt {
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.45);
 }

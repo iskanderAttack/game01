@@ -20,6 +20,8 @@ export type Screen =
   | 'games'
   | 'history';
 export type NetRole = 'local' | 'host' | 'client';
+/** «Красиво» — наклон и объём. «Быстро» — плоская доска для слабых телефонов. */
+export type BoardQuality = 'rich' | 'fast';
 
 const K = 1000;
 
@@ -67,6 +69,14 @@ interface AppState {
   /** Связь с комнатой оборвана и восстанавливается — ввод заморожен. */
   netStalled: boolean;
   seenIntro: boolean;
+  /**
+   * Как рисовать доску. Настройка устройства, а не партии: по сети она
+   * не передаётся, иначе слабый телефон получал бы её от хоста.
+   */
+  boardQuality: BoardQuality;
+  /** Упрощение включилось само, потому что телефон не успевал. */
+  qualityAuto: boolean;
+  setBoardQuality: (quality: BoardQuality, auto?: boolean) => void;
 
   go: (screen: Screen) => void;
   back: () => void;
@@ -136,6 +146,8 @@ export const useApp = create<AppState>()(
       localPlayerId: null,
       netStalled: false,
       seenIntro: false,
+      boardQuality: 'rich',
+      qualityAuto: false,
       error: null,
 
       go: (screen) => set((s) => ({ screen, previousScreen: s.screen })),
@@ -234,6 +246,8 @@ export const useApp = create<AppState>()(
 
       nudgeBots: () => scheduleBot(get, set),
 
+      setBoardQuality: (quality, auto = false) => set({ boardQuality: quality, qualityAuto: auto }),
+
       quitGame: () => {
         if (botTimer) clearTimeout(botTimer);
         botTimer = null;
@@ -245,7 +259,12 @@ export const useApp = create<AppState>()(
     {
       name: 'monopoly-storage',
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ settings: s.settings, profile: s.profile, seenIntro: s.seenIntro }),
+      partialize: (s) => ({
+        settings: s.settings,
+        profile: s.profile,
+        seenIntro: s.seenIntro,
+        boardQuality: s.boardQuality,
+      }),
     },
   ),
 );

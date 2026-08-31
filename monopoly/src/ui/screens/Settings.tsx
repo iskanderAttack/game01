@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { DEFAULT_SETTINGS, useApp } from '../../store/appStore';
 import { Screen, SectionTitle, TopBar } from '../components/Shell';
-import { Toggle } from '../components/controls';
+import { Segmented, Toggle } from '../components/controls';
 import { diagEntries, diagText } from '../../lib/diag';
 import { play, tap } from '../../lib/feedback';
 
@@ -9,6 +9,9 @@ export function SettingsScreen() {
   const go = useApp((s) => s.go);
   const settings = useApp((s) => s.settings);
   const setSettings = useApp((s) => s.setSettings);
+  const quality = useApp((s) => s.boardQuality);
+  const qualityAuto = useApp((s) => s.qualityAuto);
+  const setBoardQuality = useApp((s) => s.setBoardQuality);
 
   return (
     <Screen name="settings">
@@ -34,6 +37,28 @@ export function SettingsScreen() {
             value={settings.haptics}
             onChange={(v) => setSettings({ haptics: v })}
           />
+        </div>
+
+        <SectionTitle>Вид доски</SectionTitle>
+        <div className="card stack">
+          <Segmented
+            value={quality}
+            onChange={(v) => {
+              tap();
+              setBoardQuality(v as 'rich' | 'fast');
+            }}
+            options={[
+              { value: 'rich', label: 'Красиво', emoji: '🎲' },
+              { value: 'fast', label: 'Быстро', emoji: '⚡' },
+            ]}
+          />
+          <div className="setting-hint">
+            {quality === 'fast'
+              ? qualityAuto
+                ? 'Доска лежит плоско: телефон не успевал отрисовывать объёмную, и она упростилась сама. Можно вернуть — но если снова начнёт подтормаживать, переключите обратно.'
+                : 'Доска лежит плоско — так она рисуется заметно легче. Читаемость и камера те же.'
+              : 'Доска с наклоном и объёмом. Если на телефоне появятся рывки или клетки начнут мигать, переключите на «Быстро».'}
+          </div>
         </div>
 
         <SectionTitle>Правила по умолчанию</SectionTitle>
@@ -72,7 +97,7 @@ export function SettingsScreen() {
             <div>
               <div style={{ fontWeight: 700 }}>Монополия</div>
               <div className="muted" style={{ fontSize: 13 }}>
-                Версия 1.1.1 · офлайн и по Wi-Fi
+                Версия 1.1.2 · офлайн и по Wi-Fi
               </div>
             </div>
           </div>

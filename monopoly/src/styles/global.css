@@ -114,9 +114,11 @@ p {
   width: 80vmax;
   height: 80vmax;
   border-radius: 50%;
-  filter: blur(100px);
-  opacity: 0.34;
-  animation: swell 30s ease-in-out infinite alternate;
+  /* Размытия здесь больше нет: радиальный градиент и так мягкий, а blur(100px)
+     по пятну в два экрана шириной пересчитывался каждый кадр — из-за него
+     подтормаживало всё приложение, а не только доска. */
+  opacity: 0.26;
+  animation: swell 40s ease-in-out infinite alternate;
 }
 
 .table-bg::before {
@@ -529,8 +531,9 @@ p {
 .sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(2, 8, 16, 0.72);
-  backdrop-filter: blur(6px);
+  /* Размытие фона под шторкой стоит дорого: за ней остаётся трёхмерная
+     доска, и её пришлось бы перерисовывать сквозь фильтр. */
+  background: rgba(2, 8, 16, 0.86);
   z-index: 40;
 }
 

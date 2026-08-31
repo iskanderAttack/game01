@@ -4,6 +4,10 @@
   --bg-2: #0d0f1e;
   --surface: rgba(255, 255, 255, 0.045);
   --surface-2: rgba(255, 255, 255, 0.075);
+  /* Непрозрачные двойники: размывать фон под каждой карточкой слишком дорого —
+     на прокрутке телефон роняет кадры и теряет надписи. */
+  --surface-solid: #141626;
+  --surface-solid-2: #1b1e31;
   --stroke: rgba(255, 255, 255, 0.09);
   --stroke-strong: rgba(255, 255, 255, 0.18);
   --text: #f2f4ff;
@@ -186,12 +190,10 @@ p {
 
 /* ─────────────────────────── компоненты ─────────────────────────── */
 .card {
-  background: var(--surface);
+  background: var(--surface-solid);
   border: 1px solid var(--stroke);
   border-radius: var(--r-lg);
   padding: 16px;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   position: relative;
   overflow: hidden;
 }

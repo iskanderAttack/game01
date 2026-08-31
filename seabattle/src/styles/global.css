@@ -4,6 +4,10 @@
   --bg-2: #06192b;
   --surface: rgba(255, 255, 255, 0.05);
   --surface-2: rgba(255, 255, 255, 0.085);
+  /* Непрозрачные двойники: размывать фон под каждой карточкой слишком дорого —
+     на прокрутке телефон роняет кадры и теряет надписи. */
+  --surface-solid: #0c2237;
+  --surface-solid-2: #123049;
   --stroke: rgba(148, 197, 255, 0.12);
   --stroke-strong: rgba(148, 197, 255, 0.26);
   --text: #eaf4ff;
@@ -112,9 +116,11 @@ p {
   width: 80vmax;
   height: 80vmax;
   border-radius: 50%;
-  filter: blur(100px);
-  opacity: 0.34;
-  animation: swell 30s ease-in-out infinite alternate;
+  /* Размытия здесь больше нет: радиальный градиент и так мягкий, а blur(100px)
+     по пятну в два экрана шириной пересчитывался каждый кадр и тормозил всё
+     приложение. */
+  opacity: 0.26;
+  animation: swell 40s ease-in-out infinite alternate;
 }
 
 .ocean::before {
@@ -218,11 +224,10 @@ p {
 
 /* ───────────────────────────── блоки ───────────────────────────── */
 .card {
-  background: var(--surface);
+  background: var(--surface-solid);
   border: 1px solid var(--stroke);
   border-radius: var(--r-lg);
   padding: 16px;
-  backdrop-filter: blur(12px);
 }
 
 .card.center {
@@ -528,8 +533,7 @@ p {
 .sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(2, 8, 16, 0.72);
-  backdrop-filter: blur(6px);
+  background: rgba(2, 8, 16, 0.86);
   z-index: 40;
 }
 
