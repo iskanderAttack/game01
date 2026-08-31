@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useApp, useActor, useCanAct, useMe } from '../../store/appStore';
+import { useApp, useActor, useCanAct, useMe, useNetStalled } from '../../store/appStore';
 import {
   buildCost,
   canBuild,
@@ -12,9 +12,12 @@ import {
   type Action,
 } from '../../game/engine';
 import { JAIL_FEE } from '../../game/board';
+import type { GameState } from '../../game/types';
 import { getMode } from '../../game/modes';
 import { money, moneyDelta } from '../../game/money';
 import { act } from '../../net/bridge';
+import { handOverToBot, useHost } from '../../net/host';
+import { useKeepAwake } from '../../lib/wakelock';
 import { Screen, Sheet } from '../components/Shell';
 import { Board } from '../components/Board';
 import { PlayerStrip } from '../components/PlayerBits';
@@ -31,6 +34,10 @@ export function GameScreen() {
   const me = useMe();
   const actor = useActor();
   const canAct = useCanAct();
+  const netStalled = useNetStalled();
+  const hosting = useHost((s) => s.active);
+
+  useKeepAwake(true);
 
   const [deedTile, setDeedTile] = useState<number | null>(null);
   const [assetsOpen, setAssetsOpen] = useState(false);
@@ -102,10 +109,12 @@ export function GameScreen() {
   }
 
   const mode = getMode(game.settings.modeId);
+  // Действие всегда уходит от своего лица: по сети «я» — это моё место,
+  // а не тот, чей сейчас ход.
   const send = (action: Action) => {
-    if (!actor) return;
+    if (!me) return;
     tap('select');
-    act(actor.id, action);
+    act(me.id, action);
   };
 
   const prompt = game.prompt;
@@ -189,7 +198,7 @@ export function GameScreen() {
                 </button>
                 <button
                   className="btn primary grow"
-                  disabled={(actor?.money ?? 0) < prompt.price}
+                  disabled={(me?.money ?? 0) < prompt.price}
                   onClick={() => send({ t: 'buy' })}
                 >
                   Купить
@@ -248,7 +257,7 @@ export function GameScreen() {
           <div className="prompt-card">
             <div className="prompt-title">🔒 Вы в тюрьме</div>
             <div className="prompt-text">
-              Отсидели {actor?.jailTurns ?? 0} из 3 ходов. Можно внести залог {money(JAIL_FEE)},
+              Отсидели {me?.jailTurns ?? 0} из 3 ходов. Можно внести залог {money(JAIL_FEE)},
               использовать карточку освобождения или попробовать выбросить дубль.
             </div>
             {canAct && (
@@ -258,12 +267,12 @@ export function GameScreen() {
                 </button>
                 <button
                   className="btn grow"
-                  disabled={(actor?.money ?? 0) < JAIL_FEE}
+                  disabled={(me?.money ?? 0) < JAIL_FEE}
                   onClick={() => send({ t: 'jailPay' })}
                 >
                   Залог
                 </button>
-                {(actor?.jailCards ?? 0) > 0 && (
+                {(me?.jailCards ?? 0) > 0 && (
                   <button className="btn primary grow" onClick={() => send({ t: 'jailCard' })}>
                     🔑 Карточка
                   </button>
@@ -277,7 +286,7 @@ export function GameScreen() {
           <div className="prompt-card" style={{ borderColor: 'var(--danger)' }}>
             <div className="prompt-title">⚠️ Не хватает денег</div>
             <div className="prompt-text">
-              Нужно <b>{money(prompt.amount)}</b>, а на руках {money(actor?.money ?? 0)}. Продайте
+              Нужно <b>{money(prompt.amount)}</b>, а на руках {money(me?.money ?? 0)}. Продайте
               постройки или заложите участки — платёж пройдёт сам, как только денег хватит.
             </div>
             {canAct && (
@@ -332,6 +341,29 @@ export function GameScreen() {
       {!canAct && game.stage !== 'auction' && (
         <div className="waiting-hint">
           {actor?.isBot ? `${actor.name} думает…` : `Ждём ход игрока ${actor?.name ?? '…'}`}
+        </div>
+      )}
+
+      {/* Хозяин партии видит, что стол ждёт выпавшего игрока, и может не ждать. */}
+      {hosting && actor && actor.connected === false && !actor.isBot && (
+        <DisconnectedBanner name={actor.name} onHandOver={() => handOverToBot(actor.id)} />
+      )}
+
+      {/*
+        Пока связь восстанавливается, экран заблокирован. Это предохранитель:
+        даже если роль устройства когда-нибудь снова потеряется, сходить
+        за соседа будет физически нельзя.
+      */}
+      {netRole !== 'local' && netStalled && (
+        <div className="net-stalled">
+          <div className="net-stalled-card">
+            <div className="shimmer" style={{ fontSize: 34 }}>📡</div>
+            <div className="net-title" style={{ marginTop: 10 }}>Связь потеряна</div>
+            <p className="muted" style={{ marginTop: 6, fontSize: 13.5 }}>
+              Возвращаемся в комнату. Ваше место сохранено — партия продолжится
+              с того же хода.
+            </p>
+          </div>
         </div>
       )}
 
@@ -402,8 +434,37 @@ export function GameScreen() {
   );
 }
 
+function DisconnectedBanner({ name, onHandOver }: { name: string; onHandOver: () => void }) {
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setWaited(true), 20000);
+    return () => clearTimeout(t);
+  }, [name]);
+
+  return (
+    <div className="notice warn" style={{ margin: '0 2px 8px' }}>
+      <b>{name}</b> не на связи.{' '}
+      {waited ? (
+        <button className="btn small" style={{ marginTop: 8 }} onClick={onHandOver}>
+          🤖 Доиграть за бота
+        </button>
+      ) : (
+        'Ждём возвращения…'
+      )}
+    </div>
+  );
+}
+
 /* ─────────────────────── управление имуществом ─────────────────────── */
 
+/**
+ * Свои активы. Показывает имущество ВЛАДЕЛЬЦА ЭТОГО УСТРОЙСТВА, а не того,
+ * чей сейчас ход: иначе по сети было видно чужие деньги и участки.
+ *
+ * Строка участка вынесена в memo-компонент — иначе проверки `canBuild` и
+ * `canMortgage` пересчитывались бы для всех участков на каждую рассылку
+ * состояния по сети, и шторка дёргалась при прокрутке.
+ */
 function AssetsSheet({
   open,
   onClose,
@@ -414,25 +475,25 @@ function AssetsSheet({
   onAction: (a: Action) => void;
 }) {
   const game = useApp((s) => s.game);
-  const actor = useActor();
+  const me = useMe();
   const canAct = useCanAct();
-  if (!game || !actor) return null;
+  if (!game || !me) return null;
 
-  const tiles = ownedTiles(game, actor.id).sort((a, b) => a - b);
+  const tiles = ownedTiles(game, me.id).sort((a, b) => a - b);
 
   return (
     <Sheet open={open} onClose={onClose} title="Мои активы">
       <div className="stack">
         <div className="card row between">
           <span className="label">Наличные</span>
-          <b className="mono" style={{ color: 'var(--gold)' }}>{money(actor.money)}</b>
+          <b className="mono" style={{ color: 'var(--gold)' }}>{money(me.money)}</b>
         </div>
 
         {game.settings.tycoon && (
           <div className="card stack">
             <div className="row between">
               <span className="label">Банковский кредит</span>
-              <b className="mono">{money(actor.loan)}</b>
+              <b className="mono">{money(me.loan)}</b>
             </div>
             <div className="row">
               <button
@@ -444,8 +505,8 @@ function AssetsSheet({
               </button>
               <button
                 className="btn grow small"
-                disabled={!canAct || actor.loan === 0}
-                onClick={() => onAction({ t: 'repay', amount: actor.loan })}
+                disabled={!canAct || me.loan === 0}
+                onClick={() => onAction({ t: 'repay', amount: me.loan })}
               >
                 Погасить
               </button>
@@ -455,75 +516,90 @@ function AssetsSheet({
 
         {tiles.length === 0 && <div className="muted">Пока ни одного участка.</div>}
 
-        {tiles.map((i) => {
-          const tile = tileAt(i);
-          const prop = game.properties[i];
-          const buildErr = canBuild(game, actor.id, i);
-          const mortErr = canMortgage(game, actor.id, i);
-
-          return (
-            <div key={i} className="card stack" style={{ padding: 12 }}>
-              <div className="row between">
-                <b style={{ fontSize: 14 }}>{tile.name}</b>
-                <span className="chip">
-                  {prop.mortgaged
-                    ? 'заложен'
-                    : prop.houses >= 6
-                      ? '🏙️ небоскрёб'
-                      : prop.houses === 5
-                        ? '🏨 отель'
-                        : `${prop.houses} 🏠`}
-                </span>
-              </div>
-
-              <div className="row" style={{ flexWrap: 'wrap' }}>
-                {tile.kind === 'street' && (
-                  <button
-                    className="btn small grow"
-                    disabled={!canAct || !!buildErr}
-                    title={buildErr ?? ''}
-                    onClick={() => onAction({ t: 'build', tile: i })}
-                  >
-                    🏗️ Строить {money(buildCost(game, i))}
-                  </button>
-                )}
-                {prop.houses > 0 && (
-                  <button
-                    className="btn small grow"
-                    disabled={!canAct}
-                    onClick={() => onAction({ t: 'sellHouse', tile: i })}
-                  >
-                    Продать постройку
-                  </button>
-                )}
-                {game.settings.mortgages && !prop.mortgaged && (
-                  <button
-                    className="btn small grow"
-                    disabled={!canAct || !!mortErr}
-                    title={mortErr ?? ''}
-                    onClick={() => onAction({ t: 'mortgage', tile: i })}
-                  >
-                    🏦 Заложить
-                  </button>
-                )}
-                {prop.mortgaged && (
-                  <button
-                    className="btn small grow"
-                    disabled={!canAct}
-                    onClick={() => onAction({ t: 'unmortgage', tile: i })}
-                  >
-                    Выкупить
-                  </button>
-                )}
-              </div>
-
-              {buildErr && tile.kind === 'street' && (
-                <div className="setting-hint">{buildErr}</div>
-              )}
-            </div>
-          );
-        })}
+        {tiles.map((i) => (
+          <AssetRow key={i} state={game} ownerId={me.id} tileIndex={i} canAct={canAct} onAction={onAction} />
+        ))}
       </div>
     </Sheet>
   );
 }
+
+const AssetRow = memo(function AssetRow({
+  state,
+  ownerId,
+  tileIndex,
+  canAct,
+  onAction,
+}: {
+  state: GameState;
+  ownerId: string;
+  tileIndex: number;
+  canAct: boolean;
+  onAction: (a: Action) => void;
+}) {
+  const tile = tileAt(tileIndex);
+  const prop = state.properties[tileIndex];
+  const buildErr = canBuild(state, ownerId, tileIndex);
+  const mortErr = canMortgage(state, ownerId, tileIndex);
+
+  return (
+    <div className="card stack" style={{ padding: 12 }}>
+      <div className="row between">
+        <b style={{ fontSize: 14 }}>{tile.name}</b>
+        <span className="chip">
+          {prop.mortgaged
+            ? 'заложен'
+            : prop.houses >= 6
+              ? '🏙️ небоскрёб'
+              : prop.houses === 5
+                ? '🏨 отель'
+                : `${prop.houses} 🏠`}
+        </span>
+      </div>
+
+      <div className="row" style={{ flexWrap: 'wrap' }}>
+        {tile.kind === 'street' && (
+          <button
+            className="btn small grow"
+            disabled={!canAct || !!buildErr}
+            onClick={() => onAction({ t: 'build', tile: tileIndex })}
+          >
+            🏗️ Строить {money(buildCost(state, tileIndex))}
+          </button>
+        )}
+        {prop.houses > 0 && (
+          <button
+            className="btn small grow"
+            disabled={!canAct}
+            onClick={() => onAction({ t: 'sellHouse', tile: tileIndex })}
+          >
+            Продать постройку
+          </button>
+        )}
+        {state.settings.mortgages && !prop.mortgaged && (
+          <button
+            className="btn small grow"
+            disabled={!canAct || !!mortErr}
+            onClick={() => onAction({ t: 'mortgage', tile: tileIndex })}
+          >
+            🏦 Заложить
+          </button>
+        )}
+        {prop.mortgaged && (
+          <button
+            className="btn small grow"
+            disabled={!canAct}
+            onClick={() => onAction({ t: 'unmortgage', tile: tileIndex })}
+          >
+            Выкупить
+          </button>
+        )}
+      </div>
+
+      {buildErr && tile.kind === 'street' && <div className="setting-hint">{buildErr}</div>}
+      {mortErr && !prop.mortgaged && state.settings.mortgages && (
+        <div className="setting-hint">{mortErr}</div>
+      )}
+    </div>
+  );
+});

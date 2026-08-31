@@ -5,7 +5,7 @@ import { getAbility } from '../../game/abilities';
 import { getMode } from '../../game/modes';
 import { cellName, inBoard, key } from '../../game/coords';
 import { NONE, type Coord, type ShotRecord } from '../../game/types';
-import { Screen, Sheet } from '../components/Shell';
+import { Screen, Sheet, NetStalledOverlay } from '../components/Shell';
 import { Board } from '../components/Board';
 import { AbilityBar, EnergyBar } from '../components/AbilityBar';
 import { TargetStrip } from '../components/TargetStrip';
@@ -477,6 +477,8 @@ export function GameScreen() {
           />
         )}
       </AnimatePresence>
+      <NetStalledOverlay />
+
     </Screen>
   );
 }

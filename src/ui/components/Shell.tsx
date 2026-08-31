@@ -1,3 +1,4 @@
+import { useApp } from '../../store/appStore';
 import { createContext, useContext, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { tap } from '../../lib/feedback';
@@ -166,5 +167,30 @@ export function Sheet({
         <div className="sheet-body">{children}</div>
       </motion.div>
     </motion.div>
+  );
+}
+
+/**
+ * Пока связь восстанавливается, экран заблокирован.
+ *
+ * Это предохранитель: даже если роль устройства когда-нибудь снова
+ * потеряется, сходить за соседа будет физически нельзя.
+ */
+export function NetStalledOverlay() {
+  const netRole = useApp((s) => s.netRole);
+  const netStalled = useApp((s) => s.netStalled);
+  if (netRole === 'local' || !netStalled) return null;
+
+  return (
+    <div className="net-stalled">
+      <div className="net-stalled-card">
+        <div className="shimmer" style={{ fontSize: 34 }}>📡</div>
+        <div style={{ marginTop: 10, fontWeight: 760, fontSize: 17 }}>Связь потеряна</div>
+        <p className="muted" style={{ marginTop: 6, fontSize: 13.5 }}>
+          Возвращаемся в комнату. Ваше место сохранено — партия продолжится
+          с того же места.
+        </p>
+      </div>
+    </div>
   );
 }

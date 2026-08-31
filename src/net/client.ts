@@ -8,6 +8,7 @@ import {
   RELAY_PORT,
   decode,
   encode,
+  sessionId,
   type ClientMessage,
   type HostMessage,
   type LobbyMember,
@@ -42,17 +43,88 @@ export const useClient = create<ClientStore>(() => ({
 
 let ws: WebSocket | null = null;
 let heartbeat: ReturnType<typeof setInterval> | null = null;
-let retry = 0;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let attempts = 0;
+/** Хотим ли мы быть в комнате. Становится false только при явном выходе. */
+let wanted = false;
 let lastTarget: { ip: string; port: number; code: string } | null = null;
 
 function send(msg: ClientMessage) {
   if (ws?.readyState === WebSocket.OPEN) ws.send(encode(msg));
 }
 
+/**
+ * Рвёт сокет, НЕ трогая роль устройства.
+ *
+ * Раньше переподключение начиналось с полного `disconnect()`, а тот сбрасывал
+ * роль в «local». В роли «local» устройство считает себя игрой на одном
+ * телефоне и разрешает ходить за любого — после блокировки экрана телефон
+ * начинал играть за весь стол у себя, а хост об этом не знал.
+ */
+function closeSocket() {
+  if (heartbeat) clearInterval(heartbeat);
+  heartbeat = null;
+  const socket = ws;
+  ws = null;
+  if (socket) {
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onclose = null;
+    socket.onerror = null;
+    try {
+      socket.close();
+    } catch {
+      /* уже закрыт */
+    }
+  }
+}
+
+function clearReconnect() {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+}
+
+/** Пауза перед следующей попыткой: 0,5 -> 1 -> 2 -> 4 -> 8 с и дальше по 8. */
+function backoff(): number {
+  return Math.min(500 * 2 ** Math.max(0, attempts - 1), 8000);
+}
+
+function scheduleReconnect() {
+  if (!wanted || !lastTarget) return;
+  clearReconnect();
+  attempts += 1;
+  useApp.getState().setNetStalled(true);
+  useClient.setState({ status: 'connecting', error: 'Связь потеряна, восстанавливаем…' });
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    if (!wanted || !lastTarget) return;
+    openSocket(lastTarget.ip, lastTarget.port, lastTarget.code);
+  }, backoff());
+}
+
+/** Попробовать прямо сейчас — например, когда игру вернули на экран. */
+export function reconnectNow() {
+  if (!wanted || !lastTarget) return;
+  if (ws?.readyState === WebSocket.OPEN) {
+    send({ t: 'ping' });
+    return;
+  }
+  clearReconnect();
+  attempts = 0;
+  openSocket(lastTarget.ip, lastTarget.port, lastTarget.code);
+}
+
 export function connectToRoom(ip: string, port = DEFAULT_PORT, code = '') {
-  disconnect(false);
+  wanted = true;
+  attempts = 0;
   lastTarget = { ip, port, code };
+  clearReconnect();
   useClient.setState({ status: 'connecting', error: null });
+  openSocket(ip, port, code);
+}
+
+function openSocket(ip: string, port: number, code: string) {
+  closeSocket();
 
   const url = clientUrl(ip, port, code);
   const socket = new WebSocket(url);
@@ -60,16 +132,25 @@ export function connectToRoom(ip: string, port = DEFAULT_PORT, code = '') {
 
   const failTimer = setTimeout(() => {
     if (socket.readyState !== WebSocket.OPEN) {
-      socket.close();
-      useClient.setState({ status: 'error', error: `Комната по адресу ${ip}:${port} не отвечает` });
+      try {
+        socket.close();
+      } catch {
+        /* уже закрыт */
+      }
     }
   }, 6000);
 
   socket.onopen = () => {
     clearTimeout(failTimer);
-    retry = 0;
     const { profile } = useApp.getState();
-    send({ t: 'join', version: PROTOCOL_VERSION, name: profile.name, emoji: profile.emoji, color: profile.color });
+    send({
+      t: 'join',
+      version: PROTOCOL_VERSION,
+      session: sessionId(),
+      name: profile.name,
+      emoji: profile.emoji,
+      color: profile.color,
+    });
     heartbeat = setInterval(() => send({ t: 'ping' }), 8000);
   };
 
@@ -80,15 +161,20 @@ export function connectToRoom(ip: string, port = DEFAULT_PORT, code = '') {
 
     switch (msg.t) {
       case 'welcome':
-        diag('сеть', 'принят в комнату');
+        diag('сеть', attempts > 0 ? 'вернулись на своё место' : 'приняты в комнату');
+        attempts = 0;
         useClient.setState({ status: 'lobby', playerId: msg.playerId, room: msg.room, error: null });
         app.setNetRole('client', msg.playerId);
+        app.setNetStalled(false);
         play('event');
         break;
       case 'reject':
         diag('сеть', 'отказ: ' + msg.reason);
+        wanted = false;
+        clearReconnect();
+        app.setNetStalled(false);
         useClient.setState({ status: 'error', error: msg.reason });
-        socket.close();
+        closeSocket();
         break;
       case 'lobby':
         useClient.setState({ members: msg.members, room: msg.room, status: 'lobby' });
@@ -96,13 +182,17 @@ export function connectToRoom(ip: string, port = DEFAULT_PORT, code = '') {
         break;
       case 'state':
         diag('сеть', `состояние: раунд ${msg.game.round + 1}, фаза ${msg.game.phase}`);
-        useClient.setState({ status: 'playing' });
+        useClient.setState({ status: 'playing', error: null });
+        app.setNetStalled(false);
         app.applyRemoteState(msg.game, msg.reveal);
         break;
       case 'closed':
         diag('сеть', 'комната закрыта: ' + msg.reason);
+        wanted = false;
+        clearReconnect();
+        app.setNetStalled(false);
         useClient.setState({ status: 'closed', error: msg.reason });
-        socket.close();
+        closeSocket();
         break;
       case 'pong':
         break;
@@ -111,24 +201,19 @@ export function connectToRoom(ip: string, port = DEFAULT_PORT, code = '') {
 
   socket.onclose = () => {
     clearTimeout(failTimer);
+    if (ws !== socket) return; // закрылся уже заменённый сокет — не наше дело
     if (heartbeat) clearInterval(heartbeat);
     heartbeat = null;
-    const status = useClient.getState().status;
-    if (status === 'playing' || status === 'lobby') {
-      // Мягкое переподключение — Wi-Fi любит моргать.
-      if (retry < 5 && lastTarget) {
-        retry++;
-        useClient.setState({ status: 'connecting', error: 'Связь потеряна, переподключаемся…' });
-        setTimeout(() => connectToRoom(lastTarget!.ip, lastTarget!.port, lastTarget!.code), 900 * retry);
-      } else {
-        useClient.setState({ status: 'closed', error: 'Соединение с комнатой потеряно' });
-      }
-    }
+    ws = null;
+    if (!wanted) return;
+    // Wi-Fi моргает, экран гаснет — пробуем снова, пока игра нужна игроку.
+    scheduleReconnect();
   };
 
   socket.onerror = () => {
-    if (useClient.getState().status === 'connecting' && retry === 0) {
-      useClient.setState({ status: 'error', error: `Не удалось подключиться к ${ip}:${port}` });
+    if (!wanted) return;
+    if (useClient.getState().status === 'connecting' && attempts === 0) {
+      useClient.setState({ error: `Не удалось подключиться к ${ip}:${port}` });
     }
   };
 }
@@ -137,16 +222,30 @@ export function sendMove(move: Move) {
   send({ t: 'move', move });
 }
 
+/** Явный выход из комнаты: только отсюда сбрасывается роль устройства. */
 export function disconnect(notifyHost = true) {
   if (notifyHost) send({ t: 'leave' });
-  retry = 99;
-  if (heartbeat) clearInterval(heartbeat);
-  heartbeat = null;
-  ws?.close();
-  ws = null;
+  wanted = false;
+  attempts = 0;
+  lastTarget = null;
+  clearReconnect();
+  closeSocket();
   useClient.setState({ status: 'idle', playerId: null, members: [], room: '', error: null });
   useApp.getState().setNetRole('local', null);
 }
+
+/* ─────────────── возвращение игры на экран ───────────────
+   Телефон в кармане замораживает WebView и роняет сокет. Как только игру
+   снова видно — не ждём таймера, пробуем подключиться сразу. */
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) reconnectNow();
+  });
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => reconnectNow());
+}
+
 
 /* ───────────────────────── поиск комнат в сети ───────────────────────── */
 

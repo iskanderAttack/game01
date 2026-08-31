@@ -518,3 +518,26 @@ input[type='range']::-webkit-slider-thumb {
 .safe-motion .waiting-orb {
   animation: none !important;
 }
+
+/* ─────────────── потеря связи в сетевой партии ─────────────── */
+.net-stalled {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(6, 11, 22, 0.82);
+}
+
+.net-stalled-card {
+  width: 100%;
+  max-width: 340px;
+  text-align: center;
+  padding: 26px 22px;
+  border-radius: var(--r-lg);
+  background: var(--surface-solid, #171f33);
+  border: 1px solid var(--stroke-strong);
+  box-shadow: var(--shadow-2);
+}

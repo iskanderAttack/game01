@@ -30,8 +30,15 @@ interface HostStore {
   transport: 'native' | 'relay' | null;
   error: string | null;
   members: LobbyMember[];
-  /** clientId → playerId */
+  /** clientId → playerId. Живёт ровно столько, сколько сокет. */
   seats: Record<string, string>;
+  /**
+   * session → playerId. Переживает обрыв связи, поэтому вернувшийся игрок
+   * садится на своё прежнее место, а не получает «Партия уже идёт».
+   */
+  seatsBySession: Record<string, string>;
+  /** playerId игроков, за которых пока играет бот. */
+  botStandIns: string[];
 }
 
 export const useHost = create<HostStore>(() => ({
@@ -44,6 +51,8 @@ export const useHost = create<HostStore>(() => ({
   error: null,
   members: [],
   seats: {},
+  seatsBySession: {},
+  botStandIns: [],
 }));
 
 let transport: HostTransport | null = null;
@@ -105,6 +114,8 @@ function handleClientMessage(clientId: string, raw: string) {
       sendTo(clientId, { t: 'reject', reason: 'Разные версии игры — обновите приложение' });
       return;
     }
+    const session = msg.session || clientId;
+
     const existing = host.seats[clientId];
     if (existing) {
       sendTo(clientId, { t: 'welcome', playerId: existing, room: host.room, version: PROTOCOL_VERSION });
@@ -112,6 +123,20 @@ function handleClientMessage(clientId: string, raw: string) {
       if (app.game) sendTo(clientId, { t: 'state', game: app.game });
       return;
     }
+
+    // Игрок вернулся после обрыва — сажаем на прежнее место.
+    const known = host.seatsBySession[session];
+    if (known) {
+      useHost.setState({ seats: { ...host.seats, [clientId]: known } });
+      reconnectPlayer(known);
+      sendTo(clientId, { t: 'welcome', playerId: known, room: host.room, version: PROTOCOL_VERSION });
+      diag('сеть', `вернулся ${known}`);
+      pushLobby();
+      const game = useApp.getState().game;
+      if (game) sendTo(clientId, { t: 'state', game });
+      return;
+    }
+
     if (app.game) {
       sendTo(clientId, { t: 'reject', reason: 'Партия уже идёт' });
       return;
@@ -133,7 +158,10 @@ function handleClientMessage(clientId: string, raw: string) {
       connected: true,
     });
     useApp.setState({ draft: [...app.draft, player] });
-    useHost.setState({ seats: { ...host.seats, [clientId]: player.id } });
+    useHost.setState({
+      seats: { ...host.seats, [clientId]: player.id },
+      seatsBySession: { ...host.seatsBySession, [session]: player.id },
+    });
     sendTo(clientId, { t: 'welcome', playerId: player.id, room: host.room, version: PROTOCOL_VERSION });
     play('turn');
     diag('сеть', `подключился ${player.name}`);
@@ -160,17 +188,75 @@ function handleClientMessage(clientId: string, raw: string) {
   if (msg.t === 'ping') sendTo(clientId, { t: 'pong' });
 }
 
+/**
+ * Игрок вернулся: снимаем метку «не на связи» и, если за него уже доигрывал
+ * бот, возвращаем управление человеку.
+ */
+function reconnectPlayer(playerId: string) {
+  const app = useApp.getState();
+  const host = useHost.getState();
+  const standIn = host.botStandIns.includes(playerId);
+
+  if (app.game) {
+    useApp.setState({
+      game: {
+        ...app.game,
+        players: app.game.players.map((p) =>
+          p.id === playerId ? { ...p, connected: true, isBot: standIn ? false : p.isBot } : p,
+        ),
+      },
+    });
+  } else {
+    useApp.setState({
+      draft: app.draft.map((p) => (p.id === playerId ? { ...p, connected: true } : p)),
+    });
+  }
+
+  if (standIn) {
+    useHost.setState({ botStandIns: host.botStandIns.filter((id) => id !== playerId) });
+  }
+}
+
+/**
+ * Отдать ход отключившегося игрока боту, чтобы стол не стоял.
+ * Как только человек вернётся, управление вернётся ему само.
+ */
+export function handOverToBot(playerId: string) {
+  const app = useApp.getState();
+  if (!app.game) return;
+  const host = useHost.getState();
+  if (host.botStandIns.includes(playerId)) return;
+
+  useApp.setState({
+    game: {
+      ...app.game,
+      players: app.game.players.map((p) =>
+        p.id === playerId ? { ...p, isBot: true, botLevel: p.botLevel ?? 'normal' } : p,
+      ),
+    },
+  });
+  useHost.setState({ botStandIns: [...host.botStandIns, playerId] });
+  diag('сеть', `за ${playerId} доигрывает бот`);
+  // Разбудить очередь ботов на новом состоянии.
+  useApp.getState().nudgeBots();
+}
+
 function dropClient(clientId: string, explicit = false) {
   const host = useHost.getState();
   const playerId = host.seats[clientId];
   if (!playerId) return;
   const app = useApp.getState();
 
+  const seats = { ...host.seats };
+  delete seats[clientId];
+
   if (!app.game) {
+    const seatsBySession = { ...host.seatsBySession };
+    for (const [session, id] of Object.entries(seatsBySession)) {
+      if (id === playerId) delete seatsBySession[session];
+    }
     useApp.setState({ draft: app.draft.filter((p) => p.id !== playerId) });
-    const seats = { ...host.seats };
-    delete seats[clientId];
-    useHost.setState({ seats });
+    useHost.setState({ seats, seatsBySession });
     pushLobby();
     void advertise();
     return;
@@ -182,10 +268,16 @@ function dropClient(clientId: string, explicit = false) {
       players: app.game.players.map((p) => (p.id === playerId ? { ...p, connected: false } : p)),
     },
   });
+
+  // Место в `seatsBySession` остаётся: по нему игрок вернётся в партию.
+  // Привязка к сокету не нужна — сокета больше нет.
+  useHost.setState({ seats });
   if (explicit) {
-    const seats = { ...host.seats };
-    delete seats[clientId];
-    useHost.setState({ seats });
+    const seatsBySession = { ...host.seatsBySession };
+    for (const [session, id] of Object.entries(seatsBySession)) {
+      if (id === playerId) delete seatsBySession[session];
+    }
+    useHost.setState({ seatsBySession });
   }
   diag('сеть', `отключился ${playerId}`);
   pushLobby();
@@ -242,7 +334,15 @@ export async function stopHosting(reason = 'Хост закрыл комнату
   advertiseTimer = null;
   await transport?.stop();
   transport = null;
-  useHost.setState({ active: false, members: [], seats: {}, ip: '', transport: null });
+  useHost.setState({
+    active: false,
+    members: [],
+    seats: {},
+    seatsBySession: {},
+    botStandIns: [],
+    ip: '',
+    transport: null,
+  });
   useApp.getState().setNetRole('local', null);
 }
 

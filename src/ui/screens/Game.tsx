@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { currentTurnPlayer, useApp } from '../../store/appStore';
 import { getMode, wording } from '../../game/modes';
 import { ranking } from '../../game/engine';
-import { Screen, TopBar, Sheet, Panel } from '../components/Shell';
+import { Screen, TopBar, Sheet, Panel, NetStalledOverlay } from '../components/Shell';
 import { ChoiceStage } from '../components/ChoiceStage';
 import { RevealStage } from '../components/RevealStage';
 import { PassDevice } from '../components/PassDevice';
@@ -311,6 +311,8 @@ export function GameScreen() {
           )}
         </div>
       </Sheet>
+      <NetStalledOverlay />
+
     </Screen>
   );
 }

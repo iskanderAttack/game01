@@ -103,6 +103,9 @@ interface AppState {
   quitGame: () => void;
   applyRemoteView: (view: ClientView | null) => void;
   setNetRole: (role: NetRole, playerId: string | null) => void;
+  /** Связь с комнатой оборвана и восстанавливается — ввод заморожен. */
+  netStalled: boolean;
+  setNetStalled: (stalled: boolean) => void;
   markIntroSeen: () => void;
   pushFeed: (lines: string[]) => void;
 }
@@ -135,6 +138,8 @@ export const useApp = create<AppState>()(
       game: null,
       remoteView: null,
       netRole: 'local',
+      netStalled: false,
+      setNetStalled: (stalled) => set({ netStalled: stalled }),
       localPlayerId: null,
       seenIntro: false,
       huntRecord: null,
@@ -392,7 +397,8 @@ export const useApp = create<AppState>()(
           screen: !view ? 'home' : view.phase === 'finished' ? 'results' : view.phase === 'placement' ? 'placement' : 'game',
         }),
 
-      setNetRole: (role, playerId) => set({ netRole: role, localPlayerId: playerId }),
+      setNetRole: (role, playerId) =>
+        set({ netRole: role, localPlayerId: playerId, netStalled: false }),
       markIntroSeen: () => set({ seenIntro: true }),
 
       pushFeed: (lines) =>

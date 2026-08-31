@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useApp, useMe } from '../../store/appStore';
+import { useHistory } from '../../store/historyStore';
 import { netWorth, ranking } from '../../game/engine';
 import { getMode } from '../../game/modes';
 import { money } from '../../game/money';
@@ -16,11 +17,18 @@ export function ResultsScreen() {
   const go = useApp((s) => s.go);
   const me = useMe();
 
+  const record = useHistory((s) => s.record);
+
   const iWon = !!game && !!me && game.winnerIds.includes(me.id);
 
   useEffect(() => {
     play(iWon ? 'win' : 'lose');
   }, [iWon]);
+
+  /* Итоги сохраняются на каждом устройстве — повторная запись отсекается по партии. */
+  useEffect(() => {
+    if (game?.stage === 'over') record(game, me?.id ?? null);
+  }, [game, me, record]);
 
   if (!game) {
     return (

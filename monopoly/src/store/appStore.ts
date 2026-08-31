@@ -6,7 +6,17 @@ import { applyAction, createGame, makePlayer, type Action } from '../game/engine
 import { getMode, type ModeId } from '../game/modes';
 import type { GameSettings, GameState, Player } from '../game/types';
 
-export type Screen = 'home' | 'modes' | 'setup' | 'game' | 'results' | 'academy' | 'settings' | 'net' | 'games';
+export type Screen =
+  | 'home'
+  | 'modes'
+  | 'setup'
+  | 'game'
+  | 'results'
+  | 'academy'
+  | 'settings'
+  | 'net'
+  | 'games'
+  | 'history';
 export type NetRole = 'local' | 'host' | 'client';
 
 const K = 1000;
@@ -47,6 +57,8 @@ interface AppState {
   game: GameState | null;
   netRole: NetRole;
   localPlayerId: string | null;
+  /** Связь с комнатой оборвана и восстанавливается — ввод заморожен. */
+  netStalled: boolean;
   seenIntro: boolean;
 
   go: (screen: Screen) => void;
@@ -67,6 +79,9 @@ interface AppState {
   applyLocal: (playerId: string, action: Action) => string | null;
   applyRemoteState: (game: GameState | null) => void;
   setNetRole: (role: NetRole, playerId: string | null) => void;
+  setNetStalled: (stalled: boolean) => void;
+  /** Перепроверить, не должен ли сейчас ходить бот (после правок состояния). */
+  nudgeBots: () => void;
   quitGame: () => void;
   markIntroSeen: () => void;
   /** Ошибка последнего действия — показывается в интерфейсе. */
@@ -101,6 +116,7 @@ export const useApp = create<AppState>()(
       game: null,
       netRole: 'local',
       localPlayerId: null,
+      netStalled: false,
       seenIntro: false,
       error: null,
 
@@ -174,7 +190,12 @@ export const useApp = create<AppState>()(
           screen: !game ? 'home' : game.stage === 'over' ? 'results' : 'game',
         }),
 
-      setNetRole: (role, playerId) => set({ netRole: role, localPlayerId: playerId }),
+      setNetRole: (role, playerId) =>
+        set({ netRole: role, localPlayerId: playerId, netStalled: false }),
+
+      setNetStalled: (stalled) => set({ netStalled: stalled }),
+
+      nudgeBots: () => scheduleBot(get, set),
 
       quitGame: () => {
         if (botTimer) clearTimeout(botTimer);
@@ -252,7 +273,26 @@ function scheduleBot(get: Get, set: Set) {
 
 /* ─────────────────────────── селекторы ─────────────────────────── */
 
-/** Игрок, за которого играет это устройство. */
+/** Идёт ли сейчас переподключение к комнате. */
+export function useNetStalled(): boolean {
+  return useApp((s) => s.netStalled);
+}
+
+/** Кто сейчас действует: в торгах — участник торгов, иначе — чей ход. */
+function actingPlayer(game: GameState): Player | null {
+  if (game.stage === 'auction' && game.auction) {
+    return game.players.find((p) => p.id === game.auction!.turnId) ?? null;
+  }
+  return game.players[game.turnIndex] ?? null;
+}
+
+/**
+ * Игрок, за которого играет это устройство.
+ *
+ * На одном устройстве «я» — тот, чья сейчас очередь действовать (включая
+ * торги). По сети «я» — всегда собственное место, независимо от того, чей ход:
+ * иначе экран активов показывал бы чужое имущество.
+ */
 export function useMe(): Player | null {
   const game = useApp((s) => s.game);
   const localPlayerId = useApp((s) => s.localPlayerId);
@@ -260,39 +300,36 @@ export function useMe(): Player | null {
 
   return useMemo(() => {
     if (!game) return null;
-    if (netRole === 'local') {
-      // На одном устройстве «я» — тот, чей сейчас ход.
-      return game.players[game.turnIndex] ?? null;
-    }
+    if (netRole === 'local') return actingPlayer(game);
+    if (!localPlayerId) return null;
     return game.players.find((p) => p.id === localPlayerId) ?? null;
   }, [game, localPlayerId, netRole]);
 }
 
-/** Может ли это устройство сейчас действовать за игрока. */
+/**
+ * Может ли это устройство сейчас действовать за игрока.
+ *
+ * По сети условие строгое: место известно и очередь именно наша. Если роль
+ * почему-то потерялась (обрыв связи, переподключение), `me` не найдётся и
+ * ходить станет нельзя — лучше подождать, чем сходить за соседа.
+ */
 export function useCanAct(): boolean {
   const game = useApp((s) => s.game);
   const me = useMe();
   const netRole = useApp((s) => s.netRole);
+  const stalled = useNetStalled();
 
   return useMemo(() => {
     if (!game || !me || me.bankrupt) return false;
-    if (game.stage === 'auction' && game.auction) {
-      return netRole === 'local' ? !game.players.find((p) => p.id === game.auction!.turnId)?.isBot : game.auction.turnId === me.id;
-    }
-    const current = game.players[game.turnIndex];
-    if (!current || current.isBot) return false;
-    return netRole === 'local' ? true : current.id === me.id;
-  }, [game, me, netRole]);
+    if (netRole !== 'local' && stalled) return false;
+    const acting = actingPlayer(game);
+    if (!acting || acting.isBot) return false;
+    return acting.id === me.id;
+  }, [game, me, netRole, stalled]);
 }
 
 /** Игрок, который сейчас действует (в торгах — тот, чья ставка). */
 export function useActor(): Player | null {
   const game = useApp((s) => s.game);
-  return useMemo(() => {
-    if (!game) return null;
-    if (game.stage === 'auction' && game.auction) {
-      return game.players.find((p) => p.id === game.auction!.turnId) ?? null;
-    }
-    return game.players[game.turnIndex] ?? null;
-  }, [game]);
+  return useMemo(() => (game ? actingPlayer(game) : null), [game]);
 }

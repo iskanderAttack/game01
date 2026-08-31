@@ -4,6 +4,11 @@
   --bg-2: #111a2e;
   --surface: rgba(255, 255, 255, 0.05);
   --surface-2: rgba(255, 255, 255, 0.085);
+  /* Непрозрачные двойники: карточкам нельзя размывать фон — каждое такое
+     размытие внутри прокручиваемой шторки становится отдельным слоем,
+     и Android-WebView роняет на них кадры (текст пропадает при прокрутке). */
+  --surface-solid: #171f33;
+  --surface-solid-2: #1d273e;
   --stroke: rgba(212, 175, 105, 0.16);
   --stroke-strong: rgba(212, 175, 105, 0.34);
   --text: #f4efe4;
@@ -215,11 +220,10 @@ p {
 
 /* ───────────────────────────── блоки ───────────────────────────── */
 .card {
-  background: var(--surface);
+  background: var(--surface-solid);
   border: 1px solid var(--stroke);
   border-radius: var(--r-lg);
   padding: 16px;
-  backdrop-filter: blur(12px);
 }
 
 .card.center {
@@ -542,7 +546,16 @@ p {
   padding: 14px 16px calc(var(--safe-bottom) + 20px);
   max-height: 86dvh;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Прокрутка не выходит за пределы шторки и не перерисовывает экран. */
+  contain: paint;
   box-shadow: var(--shadow-2);
+}
+
+/* Внутри шторки карточки уже на непрозрачном фоне — подложке хватает одного
+   размытия, и оно остаётся только на ней. */
+.sheet .card {
+  background: var(--surface-solid-2);
 }
 
 .sheet-grip {
@@ -575,4 +588,27 @@ p {
 .safe-motion .pulse,
 .safe-motion .pulse-ring {
   animation: none !important;
+}
+
+/* ─────────────── потеря связи в сетевой партии ─────────────── */
+.net-stalled {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(6, 11, 22, 0.82);
+}
+
+.net-stalled-card {
+  width: 100%;
+  max-width: 340px;
+  text-align: center;
+  padding: 26px 22px;
+  border-radius: var(--r-lg);
+  background: var(--surface-solid-2);
+  border: 1px solid var(--stroke-strong);
+  box-shadow: var(--shadow-2);
 }

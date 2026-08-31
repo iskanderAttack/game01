@@ -90,6 +90,9 @@ interface AppState {
   quitGame: () => void;
 
   setNetRole: (role: NetRole, localPlayerId?: string | null) => void;
+  /** Связь с комнатой оборвана и восстанавливается — ввод заморожен. */
+  netStalled: boolean;
+  setNetStalled: (stalled: boolean) => void;
   applyRemoteState: (game: GameState, reveal: RoundResult | null) => void;
   markIntroSeen: () => void;
 }
@@ -112,6 +115,8 @@ export const useApp = create<AppState>()(
       game: null,
       reveal: null,
       netRole: 'local',
+      netStalled: false,
+      setNetStalled: (stalled) => set({ netStalled: stalled }),
       localPlayerId: null,
       seenIntro: false,
 
@@ -275,7 +280,8 @@ export const useApp = create<AppState>()(
 
       quitGame: () => set({ game: null, reveal: null, screen: 'home' }),
 
-      setNetRole: (role, localPlayerId = null) => set({ netRole: role, localPlayerId }),
+      setNetRole: (role, localPlayerId = null) =>
+        set({ netRole: role, localPlayerId, netStalled: false }),
 
       applyRemoteState: (game, reveal) =>
         set({

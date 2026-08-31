@@ -61,6 +61,14 @@ export function HomeScreen() {
           </span>
         </button>
 
+        <button className="menu-card" onClick={() => open('history')}>
+          <span className="menu-emoji">📜</span>
+          <span className="grow">
+            <span className="menu-title">История партий</span>
+            <span className="menu-note">Кто побеждал и с каким капиталом</span>
+          </span>
+        </button>
+
         <button className="menu-card" onClick={() => open('games')}>
           <span className="menu-emoji">🎁</span>
           <span className="grow">

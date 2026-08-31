@@ -33,7 +33,13 @@ interface HostStore {
   error: string | null;
   members: LobbyMember[];
   /** clientId → playerId */
+  /** clientId → playerId. Живёт ровно столько, сколько сокет. */
   seats: Record<string, string>;
+  /**
+   * session → playerId. Переживает обрыв связи, поэтому вернувшийся игрок
+   * садится на своё прежнее место, а не получает «Партия уже идёт».
+   */
+  seatsBySession: Record<string, string>;
 }
 
 export const useHost = create<HostStore>(() => ({
@@ -46,6 +52,7 @@ export const useHost = create<HostStore>(() => ({
   error: null,
   members: [],
   seats: {},
+  seatsBySession: {},
 }));
 
 let transport: HostTransport | null = null;
@@ -126,6 +133,7 @@ function handleClientMessage(clientId: string, raw: string) {
       sendTo(clientId, { t: 'reject', reason: 'Разные версии игры — обновите приложение' });
       return;
     }
+    const session = msg.session || clientId;
     const existing = host.seats[clientId];
     if (existing) {
       sendTo(clientId, { t: 'welcome', playerId: existing, room: host.room, version: PROTOCOL_VERSION });
@@ -137,6 +145,22 @@ function handleClientMessage(clientId: string, raw: string) {
       }
       return;
     }
+    // Игрок вернулся после обрыва — сажаем на прежнее место.
+    const known = host.seatsBySession[session];
+    if (known) {
+      useHost.setState({ seats: { ...host.seats, [clientId]: known } });
+      reconnectPlayer(known);
+      sendTo(clientId, { t: 'welcome', playerId: known, room: host.room, version: PROTOCOL_VERSION });
+      diag('сеть', `вернулся ${known}`);
+      pushLobby();
+      const game = useApp.getState().game;
+      if (game) {
+        const view = viewFor(game, known);
+        if (view) sendTo(clientId, { t: 'view', view });
+      }
+      return;
+    }
+
     if (app.game) {
       sendTo(clientId, { t: 'reject', reason: 'Партия уже идёт' });
       return;
@@ -158,7 +182,10 @@ function handleClientMessage(clientId: string, raw: string) {
       connected: true,
     });
     useApp.setState({ draft: [...app.draft, player] });
-    useHost.setState({ seats: { ...host.seats, [clientId]: player.id } });
+    useHost.setState({
+      seats: { ...host.seats, [clientId]: player.id },
+      seatsBySession: { ...host.seatsBySession, [session]: player.id },
+    });
     sendTo(clientId, { t: 'welcome', playerId: player.id, room: host.room, version: PROTOCOL_VERSION });
     play('turn');
     diag('сеть', `подключился ${player.name}`);
@@ -258,6 +285,33 @@ function acceptFleet(playerId: string, ships: Ship[]) {
   pushLobby();
 }
 
+
+/** Игрок вернулся: снимаем метку «не на связи». */
+function reconnectPlayer(playerId: string) {
+  const app = useApp.getState();
+  if (app.game) {
+    useApp.setState({
+      game: {
+        ...app.game,
+        players: app.game.players.map((p) => (p.id === playerId ? { ...p, connected: true } : p)),
+      },
+    });
+  } else {
+    useApp.setState({
+      draft: app.draft.map((p) => (p.id === playerId ? { ...p, connected: true } : p)),
+    });
+  }
+}
+
+/** Забыть место игрока насовсем — он вышел сам. */
+function forgetSession(playerId: string) {
+  const seatsBySession = { ...useHost.getState().seatsBySession };
+  for (const [session, id] of Object.entries(seatsBySession)) {
+    if (id === playerId) delete seatsBySession[session];
+  }
+  useHost.setState({ seatsBySession });
+}
+
 function dropClient(clientId: string, explicit = false) {
   const host = useHost.getState();
   const playerId = host.seats[clientId];
@@ -269,6 +323,7 @@ function dropClient(clientId: string, explicit = false) {
     const seats = { ...host.seats };
     delete seats[clientId];
     useHost.setState({ seats });
+    forgetSession(playerId);
     pushLobby();
     void advertise();
     return;
@@ -281,11 +336,12 @@ function dropClient(clientId: string, explicit = false) {
       players: app.game.players.map((p) => (p.id === playerId ? { ...p, connected: false } : p)),
     },
   });
-  if (explicit) {
-    const seats = { ...host.seats };
-    delete seats[clientId];
-    useHost.setState({ seats });
-  }
+  // Привязка к сокету не нужна — сокета больше нет. А место в
+  // `seatsBySession` остаётся: по нему игрок вернётся в партию.
+  const seats = { ...host.seats };
+  delete seats[clientId];
+  useHost.setState({ seats });
+  if (explicit) forgetSession(playerId);
   diag('сеть', `отключился ${playerId}`);
   pushLobby();
 }
@@ -349,7 +405,14 @@ export async function stopHosting(reason = 'Хост закрыл комнату
   advertiseTimer = null;
   await transport?.stop();
   transport = null;
-  useHost.setState({ active: false, members: [], seats: {}, ip: '', transport: null });
+  useHost.setState({
+    active: false,
+    members: [],
+    seats: {},
+    seatsBySession: {},
+    ip: '',
+    transport: null,
+  });
   useApp.getState().setNetRole('local', null);
 }
 
