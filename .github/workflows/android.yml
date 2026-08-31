@@ -61,8 +61,11 @@ jobs:
       - name: Перенести сборку в Android-проект
         run: npx cap sync android
 
+      # Условие смотрит прямо в секреты: `env` здесь ненадёжен — переменная
+      # объявлена в этом же шаге, и на момент проверки её может ещё не быть,
+      # а тогда ключ молча не подставится и сборка выйдет с отладочной подписью.
       - name: Распаковать ключ подписи
-        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
@@ -97,6 +100,21 @@ jobs:
           cp android/app/build/outputs/apk/release/app-release*.apk \
              "out/dilemma-${{ steps.version.outputs.version }}.apk"
           ls -lh out
+
+      # Отладочная подпись не даёт поставить обновление поверх прежней версии,
+      # поэтому релиз с ней публиковать нельзя — лучше уронить сборку.
+      - name: Проверить подпись
+        run: |
+          APK=$(ls out/*.apk | head -1)
+          OWNER=$(keytool -printcert -jarfile "$APK" | grep -m1 'Owner:' || echo 'Owner: неизвестно')
+          echo "Подписано: $OWNER"
+          if echo "$OWNER" | grep -q 'Android Debug'; then
+            echo "::warning::APK подписан отладочным ключом — обновление не встанет поверх"
+            if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+              echo "::error::Релизный тег с отладочной подписью — проверьте секреты ANDROID_*"
+              exit 1
+            fi
+          fi
 
       - name: Приложить APK к запуску
         uses: actions/upload-artifact@v4
