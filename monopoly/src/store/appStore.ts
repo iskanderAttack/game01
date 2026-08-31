@@ -72,6 +72,7 @@ interface AppState {
   setSettings: (patch: Partial<GameSettings>) => void;
   setMode: (id: ModeId) => void;
   setProfile: (patch: Partial<Profile>) => void;
+  rememberOutfit: (outfit: Outfit, wardrobe: string[]) => void;
 
   addHuman: (name?: string) => void;
   addBot: () => void;
@@ -147,6 +148,16 @@ export const useApp = create<AppState>()(
 
       setProfile: (patch) => set((s) => ({ profile: { ...s.profile, ...patch } })),
 
+      /** Купленное и надетое остаётся с игроком и в следующих партиях. */
+      rememberOutfit: (outfit, wardrobe) =>
+        set((s) => ({
+          profile: {
+            ...s.profile,
+            outfit: { ...outfit },
+            wardrobe: [...new Set([...s.profile.wardrobe, ...wardrobe])],
+          },
+        })),
+
       addHuman: (name) => {
         const { draft, settings, profile } = get();
         const index = draft.length;
@@ -158,6 +169,7 @@ export const useApp = create<AppState>()(
           player.emoji = profile.emoji;
           player.color = profile.color;
           player.outfit = { ...profile.outfit };
+          player.wardrobe = [...profile.wardrobe];
         }
         set({ draft: [...draft, player] });
       },

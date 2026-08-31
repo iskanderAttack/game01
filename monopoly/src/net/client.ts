@@ -155,6 +155,7 @@ function openSocket(ip: string, port: number, code: string) {
       color: profile.color,
       character: profile.character,
       outfit: profile.outfit,
+      wardrobe: profile.wardrobe,
     });
     heartbeat = setInterval(() => send({ t: 'ping' }), 8000);
   };

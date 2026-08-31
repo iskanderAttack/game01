@@ -25,9 +25,13 @@
 .home-tokens {
   display: flex;
   justify-content: center;
-  gap: 10px;
-  font-size: 32px;
+  align-items: flex-end;
+  gap: 14px;
   margin-bottom: 4px;
+}
+
+.home-tokens span {
+  line-height: 0;
 }
 
 .home-tokens span {

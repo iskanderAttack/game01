@@ -511,3 +511,147 @@
 .own-key.nearly {
   box-shadow: inset 0 0 0 1.5px var(--accent);
 }
+
+/* ─────────────────────────── бутик ─────────────────────────── */
+
+.boutique-preview {
+  flex: none;
+  width: 96px;
+  display: flex;
+  justify-content: center;
+  padding: 6px;
+  border-radius: var(--r-md);
+  background: radial-gradient(90% 70% at 50% 20%, rgba(212, 162, 76, 0.22), transparent 70%);
+}
+
+.chip.on {
+  background: rgba(212, 162, 76, 0.26);
+  border-color: var(--stroke-strong);
+  color: var(--text);
+}
+
+.shop-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--surface-solid-2);
+  border: 1px solid var(--stroke);
+  color: inherit;
+  text-align: left;
+}
+
+.shop-row.on {
+  border-color: var(--accent);
+  background: rgba(212, 162, 76, 0.16);
+}
+
+.shop-row.dim {
+  opacity: 0.45;
+}
+
+.shop-figure {
+  flex: none;
+  width: 46px;
+  line-height: 0;
+}
+
+.shop-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 720;
+  font-size: 14px;
+}
+
+.shop-name .tier {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 999px;
+  text-transform: lowercase;
+}
+
+.tier-1 {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+}
+
+.tier-2 {
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+}
+
+.tier-3 {
+  background: rgba(167, 139, 250, 0.2);
+  color: #c4b5fd;
+}
+
+.tier-4 {
+  background: linear-gradient(120deg, rgba(240, 198, 116, 0.35), rgba(212, 162, 76, 0.18));
+  color: var(--accent-2);
+}
+
+.shop-note {
+  display: block;
+  font-size: 11.5px;
+  color: var(--faint);
+  margin-top: 3px;
+}
+
+.shop-price {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--gold);
+}
+
+/* ─────────────────── выбор зверушки в профиле ─────────────────── */
+
+.critter-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+}
+
+.critter-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px 6px;
+  border-radius: var(--r-md);
+  background: var(--surface-solid-2);
+  border: 1px solid var(--stroke);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.critter-pick.on {
+  border-color: var(--accent);
+  background: rgba(212, 162, 76, 0.16);
+  color: var(--text);
+}
+
+.color-pick {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+}
+
+.color-pick.on {
+  border-color: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
+}
+
+.badge-critter {
+  display: block;
+  width: 26px;
+  line-height: 0;
+  flex: none;
+}

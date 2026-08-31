@@ -15,6 +15,7 @@ import {
 } from './board';
 import { CHANCE, CHEST, getCard, type Card } from './cards';
 import { money } from './money';
+import { getItem as getWardrobeItem, type Slot } from './wardrobe';
 import { getMode } from './modes';
 import type {
   ColorGroup,
@@ -46,6 +47,8 @@ export type Action =
   | { t: 'jailRoll' }
   | { t: 'loan'; amount: number }
   | { t: 'repay'; amount: number }
+  /** Купить и надеть вещь из бутика. Вне очереди хода, на правила не влияет. */
+  | { t: 'wear'; slot: Slot; itemId: string | null }
   | { t: 'trade'; offer: Omit<TradeOffer, 'id'> }
   | { t: 'tradeRespond'; id: string; accept: boolean }
   | { t: 'bankrupt' }
@@ -76,7 +79,12 @@ function clone(state: GameState): GameState {
   return {
     ...state,
     settings: { ...state.settings },
-    players: state.players.map((p) => ({ ...p, stats: { ...p.stats } })),
+    players: state.players.map((p) => ({
+      ...p,
+      stats: { ...p.stats },
+      outfit: { ...p.outfit },
+      wardrobe: [...p.wardrobe],
+    })),
     properties: Object.fromEntries(
       Object.entries(state.properties).map(([k, v]) => [k, { ...v }]),
     ) as Record<number, PropertyState>,
@@ -199,6 +207,7 @@ export function makePlayer(init: Partial<Player> & { id: string; name: string })
     color: '#D4A24C',
     character: 'fox',
     outfit: {},
+    wardrobe: [],
     isBot: false,
     money: 0,
     pos: 0,
@@ -723,6 +732,30 @@ export function applyAction(prev: GameState, playerId: string, action: Action): 
       return { state };
     }
     return { state: prev, error: 'Сейчас идут торги' };
+  }
+
+  /* Бутик открыт в любой момент: наряд ни на что в правилах не влияет. */
+  if (action.t === 'wear') {
+    if (state.stage === 'debt') return { state: prev, error: 'Сначала разберитесь с долгом' };
+
+    if (!action.itemId) {
+      const next = { ...player.outfit };
+      delete next[action.slot];
+      player.outfit = next;
+      return { state };
+    }
+
+    const item = getWardrobeItem(action.itemId);
+    if (!item || item.slot !== action.slot) return { state: prev, error: 'Такой вещи нет' };
+
+    if (!player.wardrobe.includes(item.id)) {
+      if (player.money < item.price) return { state: prev, error: 'Не хватает денег' };
+      player.money -= item.price;
+      player.wardrobe = [...player.wardrobe, item.id];
+      say(state, `${player.name} покупает: ${item.name.toLowerCase()}`, '🛍️');
+    }
+    player.outfit = { ...player.outfit, [action.slot]: item.id };
+    return { state };
   }
 
   /* Сделки можно предлагать и принимать в любой момент. */

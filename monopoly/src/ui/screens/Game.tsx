@@ -24,6 +24,7 @@ import { PlayerStrip } from '../components/PlayerBits';
 import { DeedCard, groupProgress } from '../components/PropertyBits';
 import { TradeSheet } from '../components/TradeSheet';
 import { OwnershipMatrix } from '../components/OwnershipMatrix';
+import { BoutiqueSheet } from '../components/BoutiqueSheet';
 import { haptic, play, tap } from '../../lib/feedback';
 
 export function GameScreen() {
@@ -44,6 +45,7 @@ export function GameScreen() {
   const [assetsOpen, setAssetsOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
   const [ownersOpen, setOwnersOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
   const [tradePreset, setTradePreset] = useState<{ partnerId: string; takeTiles: number[] } | null>(
     null,
   );
@@ -324,6 +326,9 @@ export function GameScreen() {
           <button className="chip" onClick={() => { tap(); setOwnersOpen(true); }}>
             🗂️ Кто чем владеет
           </button>
+          <button className="chip" onClick={() => { tap(); setShopOpen(true); }}>
+            🛍️ Бутик
+          </button>
           <button className="chip" onClick={() => { tap(); setLogOpen(true); }}>
             📜 Журнал
           </button>
@@ -413,6 +418,8 @@ export function GameScreen() {
         onClose={() => setAssetsOpen(false)}
         onAction={(a) => send(a)}
       />
+
+      <BoutiqueSheet open={shopOpen} onClose={() => setShopOpen(false)} />
 
       <TradeSheet open={tradeOpen} onClose={() => setTradeOpen(false)} preset={tradePreset} />
 

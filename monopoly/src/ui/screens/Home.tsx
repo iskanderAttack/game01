@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import { useApp } from '../../store/appStore';
 import { Screen, Sheet } from '../components/Shell';
-import { AVATAR_EMOJI } from '../../game/avatars';
+import { Critter } from '../components/Critter';
+import { CHARACTERS, getCharacter } from '../../game/characters';
+import { AVATAR_COLORS } from '../../game/avatars';
 import { tap } from '../../lib/feedback';
+
+/** Витрина на главной: три зверушки при параде. */
+const HERO_OUTFITS = [{ head: 'tophat' }, { eyes: 'shades' }, { neck: 'bowtie' }];
 
 export function HomeScreen() {
   const go = useApp((s) => s.go);
@@ -18,7 +23,14 @@ export function HomeScreen() {
   return (
     <Screen name="home" className="home">
       <button className="profile-badge" onClick={() => { tap(); setEditing(true); }}>
-        <span style={{ fontSize: 20 }}>{profile.emoji}</span>
+        <span className="badge-critter">
+          <Critter
+            characterId={profile.character}
+            outfit={profile.outfit}
+            accent={profile.color}
+            size={26}
+          />
+        </span>
         <span>{profile.name}</span>
         <span style={{ opacity: 0.5 }}>✎</span>
       </button>
@@ -26,9 +38,11 @@ export function HomeScreen() {
       <div className="scroll">
         <div className="home-hero">
           <div className="home-tokens">
-            <span>🎩</span>
-            <span>🚗</span>
-            <span>🐕</span>
+            {['fox', 'panda', 'penguin'].map((id, i) => (
+              <span key={id}>
+                <Critter characterId={id} outfit={HERO_OUTFITS[i]} size={54} phase={i * 3} />
+              </span>
+            ))}
           </div>
           <h1 className="home-title">Монополия</h1>
           <p className="home-sub">
@@ -95,20 +109,55 @@ export function HomeScreen() {
             placeholder="Ваше имя"
             onChange={(e) => setProfile({ name: e.target.value })}
           />
-          <span className="label">Фишка</span>
-          <div className="wrap">
-            {AVATAR_EMOJI.map((e) => (
+          <div className="card row" style={{ gap: 14, alignItems: 'center' }}>
+            <div className="boutique-preview">
+              <Critter
+                characterId={profile.character}
+                outfit={profile.outfit}
+                accent={profile.color}
+                size={90}
+              />
+            </div>
+            <div className="grow">
+              <div style={{ fontWeight: 740 }}>{getCharacter(profile.character).name}</div>
+              <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                Наряд покупается в бутике прямо во время партии и остаётся
+                с вами в следующих.
+              </p>
+            </div>
+          </div>
+
+          <span className="label">Зверушка</span>
+          <div className="critter-picker">
+            {CHARACTERS.map((c) => (
               <button
-                key={e}
-                className={`chip ${profile.emoji === e ? 'on' : ''}`}
-                style={{ fontSize: 20, padding: '8px 11px' }}
+                key={c.id}
+                className={`critter-pick ${profile.character === c.id ? 'on' : ''}`}
                 onClick={() => {
                   tap();
-                  setProfile({ emoji: e });
+                  setProfile({ character: c.id, emoji: c.emoji });
                 }}
+                aria-label={c.name}
               >
-                {e}
+                <Critter characterId={c.id} outfit={profile.outfit} accent={c.accent} size={44} animate={false} />
+                <span>{c.name}</span>
               </button>
+            ))}
+          </div>
+
+          <span className="label">Цвет</span>
+          <div className="wrap">
+            {AVATAR_COLORS.map((c) => (
+              <button
+                key={c}
+                className={`color-pick ${profile.color === c ? 'on' : ''}`}
+                style={{ background: c }}
+                onClick={() => {
+                  tap();
+                  setProfile({ color: c });
+                }}
+                aria-label="Цвет игрока"
+              />
             ))}
           </div>
           <button className="btn primary block" onClick={() => { tap('select'); setEditing(false); }}>

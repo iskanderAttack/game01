@@ -64,6 +64,8 @@ export interface Player {
   character: string;
   /** Что на ней надето. На правила не влияет — только внешний вид. */
   outfit: Outfit;
+  /** Купленные в этой партии вещи. */
+  wardrobe: string[];
   isBot: boolean;
   botLevel?: 'easy' | 'normal' | 'hard';
   remote?: boolean;

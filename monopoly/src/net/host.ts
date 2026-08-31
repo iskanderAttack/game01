@@ -155,6 +155,7 @@ function handleClientMessage(clientId: string, raw: string) {
       color: msg.color || av.color,
       character: msg.character || av.character,
       outfit: msg.outfit ?? {},
+      wardrobe: msg.wardrobe ?? [],
       isBot: false,
       remote: true,
       connected: true,
